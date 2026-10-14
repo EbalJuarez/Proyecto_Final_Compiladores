@@ -3,7 +3,7 @@
 #include "bmlang.tab.h"
 %}
 
-%option noyywrap
+%option yylineno
 
 %%
 
@@ -26,6 +26,7 @@
 "=="            { return IGUAL; }
 "!="            { return DIFERENTE; }
 "<>"            { return MENOR_MAYOR; }
+"=>"            { return ASIGNACION; }
 ">="            { return MAYOR_IGUAL; }
 "<"             { return MENOR; }
 ">"             { return MAYOR; }
@@ -36,7 +37,6 @@
 "*"             { return MULTIPLICACION; }
 "/"             { return DIVISION; }
 "$"             { return SIMBOLO_VARIABLE; }
-
 [a-zA-Z_][a-zA-Z0-9_]*   { return ID; }
 -?[0-9]+                 { return NUMERO; }
 \n                      { /* ignorar salto de línea */ }

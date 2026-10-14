@@ -5,92 +5,58 @@ int yylex(void);
 void yyerror(const char *mensaje);
 %}
 
-%token MAIN INI_LLAVE FIN_LLAVE DEC COMA READ WRITE IF ELSE WHILE FOR INI_PAREN FIN_PAREN PYC AND OR IGUAL DIFERENTE MENOR MAYOR MENOR_IGUAL MAYOR_IGUAL MENOR_MAYOR SIMBOLO_VARIABLE ID NUMERO SUMA RESTA MULTIPLICACION DIVISION DOS_PUNTOS EOL INVALIDO
+%token MAIN INI_LLAVE FIN_LLAVE DEC COMA READ WRITE IF ELSE WHILE FOR INI_PAREN FIN_PAREN PYC AND OR IGUAL DIFERENTE MENOR MAYOR MENOR_IGUAL MAYOR_IGUAL MENOR_MAYOR ASIGNACION SIMBOLO_VARIABLE ID NUMERO SUMA RESTA MULTIPLICACION DIVISION DOS_PUNTOS EOL INVALIDO
 
 %%
-programa:
-    MAIN INI_LLAVE lista_sent FIN_LLAVE {printf("Programa válido\n");}
+programa:MAIN INI_LLAVE lista_sent FIN_LLAVE {printf("Programa válido\n");}
 ;
 
-lista_sent:
-    sentencia lista_sent
-  | vacio
+lista_sent:sentencia lista_sent | vacio
 ;
 
-sentencia:
-    declaracion PYC
-  | asignacion PYC
-  | lectura PYC
-  | escritura PYC
-  | bloque_if
-  | bloque_while
-  | bloque_for
+sentencia: declaracion PYC | asignacion PYC | lectura PYC | escritura PYC | bloque_if | bloque_while | bloque_for
 ;
 
-declaracion:
-    DEC variable otra_variable
+declaracion: DEC variable otra_variable
 ;
 
-otra_variable:
-    COMA variable otra_variable
-  | vacio
+otra_variable: COMA variable otra_variable | vacio
 ;
 
-asignacion:
-    variable MENOR_IGUAL expresion
+asignacion: variable ASIGNACION expresion
 ;
 
-lectura:
-    READ variable
+lectura: READ variable
 ;
 
-escritura:
-    WRITE variable
+escritura: WRITE variable
 ;
 
-expresion:
-    expresion SUMA termino
-  | expresion RESTA termino
-  | termino
+expresion: expresion SUMA termino | expresion RESTA termino | termino
 ;
 
-termino:
-    termino MULTIPLICACION potencia
-  | termino DIVISION potencia
-  | potencia
+termino: termino MULTIPLICACION potencia | termino DIVISION potencia | potencia
 ;
 
-potencia:
-    factor DOS_PUNTOS potencia
-  | factor
+potencia: factor DOS_PUNTOS potencia | factor
 ;
 
-factor:
-    INI_PAREN expresion FIN_PAREN
-  | NUMERO
-  | variable
+factor: INI_PAREN expresion FIN_PAREN | NUMERO | variable
 ;
 
-bloque_if:
-    IF INI_PAREN cond_or FIN_PAREN INI_LLAVE lista_sent FIN_LLAVE parte_else
+bloque_if: IF INI_PAREN cond_or FIN_PAREN INI_LLAVE lista_sent FIN_LLAVE parte_else
 ;
 
-parte_else:
-    ELSE INI_LLAVE lista_sent FIN_LLAVE
-  | vacio
+parte_else: ELSE INI_LLAVE lista_sent FIN_LLAVE | vacio
 ;
 
-bloque_while:
-    WHILE INI_PAREN cond_or FIN_PAREN INI_LLAVE lista_sent FIN_LLAVE
+bloque_while: WHILE INI_PAREN cond_or FIN_PAREN INI_LLAVE lista_sent FIN_LLAVE
 ;
 
-bloque_for:
-    FOR INI_PAREN asignacion PYC cond_or PYC asignacion FIN_PAREN INI_LLAVE lista_sent FIN_LLAVE
+bloque_for: FOR INI_PAREN asignacion PYC cond_or PYC asignacion FIN_PAREN INI_LLAVE lista_sent FIN_LLAVE
 ;
 
-cond_or:
-    cond_and OR cond_and
-  | cond_and
+cond_or: cond_and OR cond_and | cond_and
 ;
 
 cond_and:
@@ -98,26 +64,16 @@ cond_and:
   | condicion
 ;
 
-condicion:
-    expresion comparador expresion
+condicion: expresion comparador expresion
 ;
 
-comparador:
-    IGUAL
-  | DIFERENTE
-  | MENOR
-  | MAYOR
-  | MAYOR_IGUAL
-  | MENOR_IGUAL
-  | MENOR_MAYOR
+comparador: IGUAL | DIFERENTE | MENOR | MAYOR | MAYOR_IGUAL | MENOR_IGUAL | MENOR_MAYOR
 ;
 
-variable:
-    SIMBOLO_VARIABLE ID
+variable: SIMBOLO_VARIABLE ID
 ;
 
-vacio:
-    /* empty */
+vacio: /* vacio */
 ;
 
 %%
@@ -127,7 +83,8 @@ int main(void)
     return yyparse();
 }
 
-void yyerror(const char *mensaje)
-{
-    fprintf(stderr, "Error: %s\n", mensaje);
+void yyerror(const char *mensaje) {
+    extern int yylineno;
+    extern char* yytext;
+    fprintf(stderr, "Error: %s en la linea %i cerca de %s\n", mensaje, yylineno, yytext);
 }

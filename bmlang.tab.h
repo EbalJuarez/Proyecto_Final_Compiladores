@@ -77,16 +77,17 @@ extern int yydebug;
     MENOR_IGUAL = 278,             /* MENOR_IGUAL  */
     MAYOR_IGUAL = 279,             /* MAYOR_IGUAL  */
     MENOR_MAYOR = 280,             /* MENOR_MAYOR  */
-    SIMBOLO_VARIABLE = 281,        /* SIMBOLO_VARIABLE  */
-    ID = 282,                      /* ID  */
-    NUMERO = 283,                  /* NUMERO  */
-    SUMA = 284,                    /* SUMA  */
-    RESTA = 285,                   /* RESTA  */
-    MULTIPLICACION = 286,          /* MULTIPLICACION  */
-    DIVISION = 287,                /* DIVISION  */
-    DOS_PUNTOS = 288,              /* DOS_PUNTOS  */
-    EOL = 289,                     /* EOL  */
-    INVALIDO = 290                 /* INVALIDO  */
+    ASIGNACION = 281,              /* ASIGNACION  */
+    SIMBOLO_VARIABLE = 282,        /* SIMBOLO_VARIABLE  */
+    ID = 283,                      /* ID  */
+    NUMERO = 284,                  /* NUMERO  */
+    SUMA = 285,                    /* SUMA  */
+    RESTA = 286,                   /* RESTA  */
+    MULTIPLICACION = 287,          /* MULTIPLICACION  */
+    DIVISION = 288,                /* DIVISION  */
+    DOS_PUNTOS = 289,              /* DOS_PUNTOS  */
+    EOL = 290,                     /* EOL  */
+    INVALIDO = 291                 /* INVALIDO  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif

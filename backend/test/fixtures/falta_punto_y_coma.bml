@@ -1,0 +1,5 @@
+MAIN {
+    DEC $a, $b;
+    $a <= 10
+    WRITE $a;
+}

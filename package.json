@@ -1,0 +1,19 @@
+{
+  "name": "bmlang-ide",
+  "version": "1.0.0",
+  "private": true,
+  "description": "IDE web para el lenguaje BMLang (Proyecto final de Compiladores, UMES)",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n backend,frontend -c green,cyan \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "build": "npm run build -w frontend",
+    "start": "npm start -w backend",
+    "test": "npm test -w backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

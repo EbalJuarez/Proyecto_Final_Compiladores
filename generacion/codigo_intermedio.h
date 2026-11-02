@@ -1,0 +1,4 @@
+#ifndef CODIGO_INTERMEDIO_H
+#define CODIGO_INTERMEDIO_H
+
+#endif

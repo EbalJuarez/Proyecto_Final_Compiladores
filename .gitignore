@@ -1,0 +1,8 @@
+/compilador/bmlang.tab.c
+/compilador/bmlang.tab.h
+/compilador/lex.yy.c
+/compilador/bmlang
+/compilador/*.exe
+/compilador/*.o
+/compilador/*.obj
+/salida/

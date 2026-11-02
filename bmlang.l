@@ -1,11 +1,23 @@
 %{
 #include <stdio.h>
 #include "bmlang.tab.h"
+
+/* Linea inicial de un comentario pendiente de cierre. */
+int linea_comentario = 0;
 %}
 
-%option yylineno
+%option yylineno noyywrap
+%x CUERPO_COMENTARIO FIN_COMENTARIO
 
 %%
+
+"#!"                              { linea_comentario = yylineno; BEGIN(CUERPO_COMENTARIO); return INICIO_COMENTARIO; }
+<CUERPO_COMENTARIO>"!#"           { yyless(yyleng - 2); BEGIN(FIN_COMENTARIO); return COMENTARIO; }
+<CUERPO_COMENTARIO>[^!\n]+        { yymore(); }
+<CUERPO_COMENTARIO>"!"            { yymore(); }
+<CUERPO_COMENTARIO>\n             { BEGIN(INITIAL); return INVALIDO; }
+<CUERPO_COMENTARIO><<EOF>>        { BEGIN(INITIAL); return INVALIDO; }
+<FIN_COMENTARIO>"!#"              { linea_comentario = 0; BEGIN(INITIAL); return CIERRE_COMENTARIO; }
 
 "MAIN"          { return MAIN; }
 "DEC"           { return DEC; }

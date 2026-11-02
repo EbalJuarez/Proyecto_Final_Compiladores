@@ -5,16 +5,20 @@ int yylex(void);
 void yyerror(const char *mensaje);
 %}
 
+%token INICIO_COMENTARIO COMENTARIO CIERRE_COMENTARIO
 %token MAIN INI_LLAVE FIN_LLAVE DEC COMA READ WRITE IF ELSE WHILE FOR INI_PAREN FIN_PAREN PYC AND OR IGUAL DIFERENTE MENOR MAYOR MENOR_IGUAL MAYOR_IGUAL MENOR_MAYOR ASIGNACION SIMBOLO_VARIABLE ID NUMERO SUMA RESTA MULTIPLICACION DIVISION DOS_PUNTOS EOL INVALIDO
 
 %%
-programa:MAIN INI_LLAVE lista_sent FIN_LLAVE {printf("Programa válido\n");}
+programa: lista_comentarios MAIN INI_LLAVE lista_sent FIN_LLAVE
+;
+
+lista_comentarios: comentario lista_comentarios | vacio
 ;
 
 lista_sent:sentencia lista_sent | vacio
 ;
 
-sentencia: declaracion PYC | asignacion PYC | lectura PYC | escritura PYC | bloque_if | bloque_while | bloque_for
+sentencia: declaracion PYC | asignacion PYC | lectura PYC | escritura PYC | bloque_if | bloque_while | bloque_for | comentario
 ;
 
 declaracion: DEC variable otra_variable
@@ -56,7 +60,7 @@ bloque_while: WHILE INI_PAREN cond_or FIN_PAREN INI_LLAVE lista_sent FIN_LLAVE
 bloque_for: FOR INI_PAREN asignacion PYC cond_or PYC asignacion FIN_PAREN INI_LLAVE lista_sent FIN_LLAVE
 ;
 
-cond_or: cond_and OR cond_and | cond_and
+cond_or: cond_or OR cond_and | cond_and
 ;
 
 cond_and:
@@ -73,6 +77,9 @@ comparador: IGUAL | DIFERENTE | MENOR | MAYOR | MAYOR_IGUAL | MENOR_IGUAL | MENO
 variable: SIMBOLO_VARIABLE ID
 ;
 
+comentario: INICIO_COMENTARIO COMENTARIO CIERRE_COMENTARIO
+;
+
 vacio: /* vacio */
 ;
 
@@ -80,11 +87,20 @@ vacio: /* vacio */
 
 int main(void)
 {
-    return yyparse();
+    int resultado = yyparse();
+    if (resultado == 0) {
+        printf("Programa válido\n");
+    }
+    return resultado;
 }
 
 void yyerror(const char *mensaje) {
     extern int yylineno;
     extern char* yytext;
+    extern int linea_comentario;
+    if (yychar == INVALIDO && linea_comentario != 0) {
+        fprintf(stderr, "Error: comentario sin cerrar en la linea %i cerca de #!; se esperaba !# antes del fin de linea\n", linea_comentario);
+        return;
+    }
     fprintf(stderr, "Error: %s en la linea %i cerca de %s\n", mensaje, yylineno, yytext);
 }

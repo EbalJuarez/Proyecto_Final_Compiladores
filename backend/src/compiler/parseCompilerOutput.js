@@ -3,11 +3,9 @@
  *
  * Formato actual del binario (ver yyerror en bmlang.y):
  *   - Válido:  stdout "Programa válido", exit 0
- *   - Error:   stderr "Error: syntax error", exit 1   (sin número de línea)
+ *   - Error:   stderr "Error: syntax error en la linea N cerca de TOKEN", exit 1
  *
- * También acepta el formato propuesto "Error línea N: texto" (y variantes como
- * "Error en la línea N: ..." o "Error line N: ..."), de modo que si se agrega
- * yylineno al analizador, el IDE marcará la línea sin cambiar este código.
+ * También acepta el formato anterior sin número de línea y variantes localizadas.
  *
  * @param {{ stdout?: string, stderr?: string, exitCode?: number|null }} result
  * @returns {{ ok: boolean, errors: { line: number|null, message: string }[], raw: string }}

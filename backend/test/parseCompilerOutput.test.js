@@ -11,11 +11,19 @@ test('programa válido: exit 0 y "Programa válido" en stdout', () => {
   });
 });
 
-test('formato actual del binario: "Error: syntax error" sin línea', () => {
+test('formato anterior del binario: "Error: syntax error" sin línea', () => {
   const r = parseCompilerOutput({ stdout: '', stderr: 'Error: syntax error\n', exitCode: 1 });
   assert.equal(r.ok, false);
   assert.deepEqual(r.errors, [{ line: null, message: 'syntax error' }]);
   assert.equal(r.raw, 'Error: syntax error');
+});
+
+test('formato actual del analizador incluye la línea después del mensaje', () => {
+  const r = parseCompilerOutput({
+    stderr: 'Error: syntax error en la linea 4 cerca de WRITE\n',
+    exitCode: 1,
+  });
+  assert.deepEqual(r.errors, [{ line: 4, message: 'syntax error en la linea 4 cerca de WRITE' }]);
 });
 
 test('formato propuesto: "Error línea N: texto"', () => {

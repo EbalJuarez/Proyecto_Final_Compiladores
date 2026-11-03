@@ -9,9 +9,7 @@ IDE solo lo invoca y muestra el resultado.
 .
 ├── compilador/                       ← analizador (Flex/Bison)
 │   ├── bmlang.l, bmlang.y            ← fuentes
-│   ├── bmlang.tab.c/.h, lex.yy.c     ← generados
-│   ├── bmlang, token_debug           ← ejecutables
-│   └── entrada_valida.txt
+│   └── archivos generados localmente (ignorados por Git)
 ├── frontend/                         ← React + Vite + Monaco
 │   ├── public/logo-umes.png          ← logo de la universidad (agregarlo aquí)
 │   └── src/
@@ -30,6 +28,7 @@ IDE solo lo invoca y muestra el resultado.
 ├── docs/
 │   ├── Gramatica proyecto.pdf
 │   └── propuesta-numero-de-linea.md
+├── ejemplos/                         ← programas fuente .bml
 └── package.json                      ← levanta backend y frontend juntos
 ```
 
@@ -51,6 +50,16 @@ bison -d bmlang.y && flex bmlang.l && gcc bmlang.tab.c lex.yy.c -o bmlang
 ```
 
 ## Cómo correr
+
+Primero compila el analizador en Linux o WSL, desde la raíz del proyecto:
+
+```bash
+bison -d -o compilador/bmlang.tab.c compilador/bmlang.y
+flex -o compilador/lex.yy.c compilador/bmlang.l
+gcc -Icompilador -o compilador/bmlang compilador/bmlang.tab.c compilador/lex.yy.c
+```
+
+Después instala las dependencias e inicia la aplicación:
 
 ```bash
 npm install     # instala raíz, frontend y backend (npm workspaces)
@@ -123,8 +132,6 @@ arreglo, timeout y límite de salida).
 
 ## Limitaciones del analizador actual
 
-- `bmlang` imprime `Error: syntax error` **sin número de línea**, así que el IDE muestra el error
-  pero no puede marcar la línea. Ver `docs/propuesta-numero-de-linea.md` (cambio de 3 líneas).
-- La asignación es `<=` (no `=>`), según `bmlang.y` y el PDF de la gramática.
-- Los comentarios `#! ... !#` se resaltan en el editor, pero el lexer no los reconoce:
-  un programa con comentarios da error de sintaxis.
+- Los errores incluyen la línea y el token cercano, pero los demás detalles de sintaxis aún
+  dependen del mensaje genérico de Bison.
+- La generación de código intermedio y NASM todavía no está implementada.

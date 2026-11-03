@@ -6,7 +6,7 @@ import { describe, test } from 'node:test';
 import { checkSyntax, CompilerUnavailableError } from '../src/compiler/index.js';
 
 const fixture = (name) => fs.readFile(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
-const validProgram = await fs.readFile(new URL('../../compilador/entrada_valida.txt', import.meta.url), 'utf8');
+const validProgram = await fs.readFile(new URL('../../ejemplos/entrada_valida.bml', import.meta.url), 'utf8');
 
 let skip = false;
 // La primera llamada puede arrancar la VM de WSL y exceder el timeout; no cuenta como sonda.
@@ -19,7 +19,7 @@ try {
 }
 
 describe('bmlang real', { skip }, () => {
-  test('entrada_valida.txt es aceptada', async () => {
+  test('entrada_valida.bml es aceptada', async () => {
     const r = await checkSyntax(validProgram);
     assert.equal(r.ok, true, r.raw);
     assert.deepEqual(r.errors, []);

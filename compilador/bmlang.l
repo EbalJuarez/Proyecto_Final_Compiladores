@@ -50,7 +50,7 @@ int linea_comentario = 0;
 "/"             { return DIVISION; }
 "$"             { return SIMBOLO_VARIABLE; }
 [a-zA-Z_][a-zA-Z0-9_]*   { return ID; }
--?[0-9]+                 { return NUMERO; }
+[0-9]+                   { return NUMERO; }
 \n                      { /* ignorar salto de línea */ }
 [ \t\r]+                { /* ignorar espacios */ }
 .                       { return INVALIDO; }

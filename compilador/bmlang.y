@@ -8,6 +8,9 @@ void yyerror(const char *mensaje);
 %token INICIO_COMENTARIO COMENTARIO CIERRE_COMENTARIO
 %token MAIN INI_LLAVE FIN_LLAVE DEC COMA READ WRITE IF ELSE WHILE FOR INI_PAREN FIN_PAREN PYC AND OR IGUAL DIFERENTE MENOR MAYOR MENOR_IGUAL MAYOR_IGUAL MENOR_MAYOR ASIGNACION SIMBOLO_VARIABLE ID NUMERO SUMA RESTA MULTIPLICACION DIVISION DOS_PUNTOS EOL INVALIDO
 
+/* Menos unario: "-" delante de un factor ($a-1, -5, -$a, -(...)). */
+%right UMINUS
+
 %%
 programa: lista_comentarios MAIN INI_LLAVE lista_sent FIN_LLAVE
 ;
@@ -45,7 +48,7 @@ termino: termino MULTIPLICACION potencia | termino DIVISION potencia | potencia
 potencia: factor DOS_PUNTOS potencia | factor
 ;
 
-factor: INI_PAREN expresion FIN_PAREN | NUMERO | variable
+factor: INI_PAREN expresion FIN_PAREN | NUMERO | variable | RESTA factor %prec UMINUS
 ;
 
 bloque_if: IF INI_PAREN cond_or FIN_PAREN INI_LLAVE lista_sent FIN_LLAVE parte_else

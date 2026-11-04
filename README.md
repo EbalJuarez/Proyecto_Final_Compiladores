@@ -29,7 +29,7 @@ IDE solo lo invoca y muestra el resultado.
 ├── docs/
 │   ├── Gramatica proyecto.pdf
 │   ├── propuesta-numero-de-linea.md  ← ya aplicada
-│   └── propuesta-numeros-negativos.md ← pendiente: "$a-1" se rechaza
+│   └── propuesta-numeros-negativos.md ← menos unario (aplicada)
 ├── ejemplos/                         ← programas fuente .bml
 └── package.json                      ← levanta backend y frontend juntos
 ```
@@ -146,8 +146,8 @@ WHILE, FOR, comentarios `#! !#`).
 - Los errores incluyen la línea y el token cercano; el detalle depende del mensaje genérico de
   Bison (el backend lo traduce a “error de sintaxis”). En un `;` faltante la línea reportada es
   la del token siguiente, porque ahí es donde Bison detecta el error.
-- `$a-1` (resta sin espacios) se rechaza porque el lexer lee `-1` como número. Ver
-  `docs/propuesta-numeros-negativos.md` (cambio mínimo probado, **no aplicado**).
+- El menos unario (`$a-1`, `-5`, `-$a`, `$b-(-2)`) está soportado desde
+  `docs/propuesta-numeros-negativos.md`; la gramática del PDF equivale a `<factor>::= ... | - <factor>`.
 - Por diseño del lexer, un comentario `#! ... !#` debe cerrarse en la misma línea; el editor
   lo marca como inválido si no se cierra.
 - Según la gramática, `WRITE` solo acepta una variable y no se permiten comentarios después

@@ -1,6 +1,6 @@
 # Propuesta: aceptar `$a-1` (resta sin espacios)
 
-**Estado: NO aplicada.** `compilador/bmlang.l` y `compilador/bmlang.y` no se han modificado.
+**Estado: aplicada.** En `bmlang.y` se usa `RESTA factor %prec UMINUS` (con `%right UMINUS`).
 
 ## Problema
 
@@ -27,12 +27,12 @@ Con espacios (`$a - 1`) sí funciona. Tampoco se puede negar una variable (`-$a`
 
 ```diff
 -factor: INI_PAREN expresion FIN_PAREN | NUMERO | variable
-+factor: INI_PAREN expresion FIN_PAREN | NUMERO | variable | RESTA factor
++factor: INI_PAREN expresion FIN_PAREN | NUMERO | variable | RESTA factor %prec UMINUS
 ```
 
 En la gramática del PDF equivale a agregar `| - <factor>` a `<factor>`.
 
-## Verificación (en una copia, sin tocar los originales)
+## Verificación
 
 Bison no reporta conflictos y todos estos casos dan `Programa válido`:
 

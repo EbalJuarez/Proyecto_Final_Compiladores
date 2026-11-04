@@ -54,6 +54,12 @@ describe('bmlang real', { skip }, () => {
     ['FOR', body('    FOR ($a => 0; $a <= 10; $a => $a + 1) { WRITE $a; }')],
     ['comentarios #! !# antes y dentro de MAIN', '#! programa !#\nMAIN {\n    #! comentario !#\n    DEC $a;\n}\n'],
     ['READ / WRITE y aritmética', body('    READ $a;\n    $x => ($a + $b) * 2 - $a / 3;\n    WRITE $x;')],
+    // Menos unario: el lexer ya no lee "-1" como un solo número.
+    ['resta sin espacios $i=>$i-1', 'MAIN {\n    DEC $i;\n    $i=>$i-1;\n}\n'],
+    ['negativo $a=>-3', body('    $a=>-3;')],
+    ['doble signo $a=>$b-(-2)', body('    $a=>$b-(-2);')],
+    ['negar variable y paréntesis', body('    $a => -$b;\n    $x => 2 * -($a + 1);')],
+    ['negativo en condición', body('    IF ($a > -1) { WRITE $a; }')],
   ];
   for (const [name, code] of valid) {
     test(`válido: ${name}`, async () => {

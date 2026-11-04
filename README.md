@@ -1,9 +1,12 @@
 # BMLang IDE
 
-IDE web para el lenguaje **BMLang** — Proyecto final de Compiladores, Universidad Mesoamericana.
+IDE web para el lenguaje **BMLang** (Basic Mathematical Language), proyecto final de Compiladores
+de la Universidad Mesoamericana.
 
-El análisis léxico y sintáctico lo hace el ejecutable `compilador/bmlang` (Flex + Bison); el
-IDE solo lo invoca y muestra el resultado.
+El análisis léxico y sintáctico lo hace el ejecutable `compilador/bmlang` (Flex + Bison). El IDE
+lo invoca, muestra el resultado y marca los errores en el editor. La generación de código de tres
+direcciones y de NASM la agregará el generador de código mediante un
+[contrato fijo](#contrato-con-el-generador-de-código). El IDE ya está conectado a ese contrato.
 
 ```
 .
@@ -13,7 +16,7 @@ IDE solo lo invoca y muestra el resultado.
 ├── frontend/                         ← React + Vite + Monaco
 │   ├── public/logo-umes.png          ← logo de la universidad (agregarlo aquí)
 │   └── src/
-│       ├── components/               ← barra, pestañas, modal "Acerca de"
+│       ├── components/               ← barra, pestañas, resultados, modal "Acerca de"
 │       ├── editor/                   ← resaltado de BMLang y configuración de Monaco
 │       ├── examples.js               ← programas de ejemplo
 │       └── team.js                   ← integrantes para "Acerca de"
@@ -21,14 +24,16 @@ IDE solo lo invoca y muestra el resultado.
 │   ├── src/
 │   │   ├── routes/api.js             ← endpoints /api/*
 │   │   └── compiler/
-│   │       ├── parseCompilerOutput.js ← adaptador salida de bmlang → { ok, errors, raw }
+│   │       ├── index.js              ← validar, TAC, NASM, ejecutable, ejecutar
+│   │       ├── parseCompilerOutput.js ← salida de bmlang → { ok, errors, raw }
 │   │       ├── runner.js             ← spawn, timeout, temporales, WSL
-│   │       └── index.js              ← checkSyntax + stubs tac/asm/build/run
-│   └── test/                         ← pruebas del adaptador y end-to-end
-├── generacion/                       ← esqueletos de código intermedio y NASM (siguiente etapa)
+│   │       └── toolchain.js          ← nasm, ld y ejecución del programa
+│   └── test/                         ← pruebas del backend con el bmlang real
+├── e2e/                              ← pruebas en navegador (Playwright)
+├── generacion/                       ← esqueletos del generador de código (siguiente etapa)
 ├── docs/
 │   ├── Gramatica proyecto.pdf
-│   ├── propuesta-numero-de-linea.md  ← ya aplicada
+│   ├── propuesta-numero-de-linea.md  ← aplicada
 │   └── propuesta-numeros-negativos.md ← menos unario (aplicada)
 ├── ejemplos/                         ← programas fuente .bml
 └── package.json                      ← levanta backend y frontend juntos
@@ -36,89 +41,126 @@ IDE solo lo invoca y muestra el resultado.
 
 ## Requisitos
 
-- Node.js 18 o superior (probado con Node 26) y npm. En Linux sin permisos de administrador
-  puedes descomprimir el binario oficial de <https://nodejs.org> en `~/.local/opt` y agregar
-  su carpeta `bin` al `PATH`.
-- El ejecutable `bmlang` funcionando:
-  - **Windows**: el binario es de Linux, así que se ejecuta automáticamente con **WSL**
-    (`wsl.exe -e /mnt/c/.../bmlang`). Necesitas WSL con una distribución instalada.
-  - **Linux / WSL nativo**: el binario se ejecuta directamente (debe tener `chmod +x`).
+| Herramienta | Para qué | Instalación (Arch / Ubuntu) |
+|---|---|---|
+| Node.js 18+ y npm (probado con 26) | IDE (frontend y backend) | `pacman -S nodejs npm` / `apt install nodejs npm` |
+| bison, flex, gcc | compilar `bmlang` | `pacman -S bison flex gcc` / `apt install bison flex gcc` |
+| nasm | Generar ejecutable / Ejecutar | `pacman -S nasm` / `apt install nasm` |
+| ld (binutils) | Generar ejecutable / Ejecutar | `pacman -S binutils` / `apt install binutils` |
 
-Si el binario no arranca con `libfl.so.2: cannot open shared object file`, instala la librería
-o recompílalo (no necesita `-lfl`):
+Sin permisos de administrador puedes descomprimir el binario oficial de Node
+(<https://nodejs.org>) en `~/.local/opt` y agregar su carpeta `bin` al `PATH`.
 
-```bash
-# dentro de WSL / Linux, en la carpeta compilador/
-sudo apt-get install -y bison flex gcc
-bison -d bmlang.y && flex bmlang.l && gcc bmlang.tab.c lex.yy.c -o bmlang
-```
+**Windows**: `bmlang`, `nasm`, `ld` y el programa generado son de Linux (ELF de 64 bits), así que
+el backend los ejecuta automáticamente con **WSL** (`wsl.exe -e ...`). Instala las herramientas
+dentro de la distribución de WSL. Si existe `compilador/bmlang.exe`, se usa ese.
 
 ## Cómo correr
 
-Primero compila el analizador en Linux o WSL, desde la raíz del proyecto:
+1. Compila el analizador (en Linux o WSL, desde la raíz):
 
-```bash
-bison -d -o compilador/bmlang.tab.c compilador/bmlang.y
-flex -o compilador/lex.yy.c compilador/bmlang.l
-gcc -Icompilador -o compilador/bmlang compilador/bmlang.tab.c compilador/lex.yy.c
-```
+   ```bash
+   bison -d -o compilador/bmlang.tab.c compilador/bmlang.y
+   flex -o compilador/lex.yy.c compilador/bmlang.l
+   gcc -Icompilador -o compilador/bmlang compilador/bmlang.tab.c compilador/lex.yy.c
+   ```
 
-Después instala las dependencias e inicia la aplicación:
+2. Instala las dependencias e inicia el IDE:
 
-```bash
-npm install     # instala raíz, frontend y backend (npm workspaces)
-npm run dev     # Express en :3001 y Vite en :5173
-```
+   ```bash
+   npm install     # raíz, frontend y backend (npm workspaces)
+   npm run dev     # Express en :3001 y Vite en :5173
+   ```
 
-Abre <http://localhost:5173>. Vite reenvía `/api` a Express (no hace falta CORS).
-
-Otros scripts:
+3. Abre <http://localhost:5173>. Vite reenvía `/api` a Express, así que no hace falta CORS.
 
 | Comando | Qué hace |
 |---|---|
-| `npm test` | Pruebas del adaptador y pruebas end-to-end con el `bmlang` real (se omiten con aviso si el binario no arranca) |
-| `npm run build && npm start` | Compila el frontend y lo sirve desde Express en <http://localhost:3001> |
+| `npm test` | Pruebas del backend con el `bmlang` real, nasm y ld. Si falta alguna herramienta, esas pruebas se omiten con un aviso. |
+| `npm run test:e2e` | Pruebas en Chromium con Playwright. Levanta `npm run dev` si no está corriendo. La primera vez ejecuta `npx playwright install chromium`. Las capturas quedan en `test-results/capturas/`. |
+| `npm run build && npm start` | Compila el frontend y lo sirve desde Express en <http://localhost:3001>. |
 
-## Configuración
-
-Variables de entorno del servidor:
+## Variables de entorno
 
 | Variable | Por defecto | Descripción |
 |---|---|---|
-| `BMLANG_PATH` | `../compilador/bmlang` (en Windows, `../compilador/bmlang.exe` si existe) | Ruta al ejecutable. Las rutas relativas se resuelven desde `backend/`. |
-| `BMLANG_RUNNER` | `auto` | `auto` (WSL si estás en Windows y el binario es ELF), `wsl` o `native`. |
-| `BMLANG_WSL_DISTRO` | (distro por defecto) | Distribución de WSL a usar, p. ej. `Ubuntu`. |
-| `BMLANG_TIMEOUT_MS` | `5000` | Tiempo máximo de ejecución del analizador. |
+| `BMLANG_PATH` | `../compilador/bmlang` (en Windows, `../compilador/bmlang.exe` si existe) | Ejecutable del compilador. Las rutas relativas se resuelven desde `backend/`. |
+| `NASM_PATH` | `nasm` (del `PATH`) | Ensamblador para Generar ejecutable y Ejecutar. |
+| `LD_PATH` | `ld` (del `PATH`) | Enlazador para Generar ejecutable y Ejecutar. |
+| `BMLANG_RUNNER` | `auto` | `auto` (WSL en Windows si el binario es ELF), `wsl` o `native`. |
+| `BMLANG_WSL_DISTRO` | (distro por defecto) | Distribución de WSL, p. ej. `Ubuntu`. |
+| `BMLANG_TIMEOUT_MS` | `5000` | Tiempo máximo del analizador, de nasm/ld y del programa ejecutado. |
 | `PORT` | `3001` | Puerto de Express. |
 
-Ejemplos:
-
 ```bash
-# Git Bash / Linux
-BMLANG_PATH=/ruta/a/bmlang npm run dev
+BMLANG_PATH=/ruta/a/bmlang NASM_PATH=/usr/bin/nasm npm run dev        # Linux / Git Bash
 ```
 
 ```powershell
-# PowerShell
-$env:BMLANG_PATH = "C:\ruta\a\bmlang"; npm run dev
+$env:BMLANG_PATH = "C:\ruta\a\bmlang"; npm run dev                       # PowerShell
 ```
 
-## Logo
+## Logo y equipo
 
-Coloca el logo en **`frontend/public/logo-umes.png`** (se muestra a 40 px de alto). Mientras no
-exista, el encabezado muestra un recuadro verde "UMES".
+- **Logo**: coloca el archivo en **`frontend/public/logo-umes.png`** (se muestra a 40 px de
+  alto). Mientras no exista, el encabezado muestra un recuadro verde con "UMES".
+- **Integrantes**: edita **`frontend/src/team.js`**. Reemplaza `[Nombre N]` y `[Carné N]` por
+  los datos reales; aparecen en el botón "Acerca de".
 
 ## Funciones
 
-- **Abrir** `.bml` (Ctrl+O), con validación de extensión y tamaño (100 KB).
-- **Editar** en Monaco con números de línea y resaltado de BMLang.
-- **Guardar** `.bml` (Ctrl+S): File System Access API (Chrome/Edge) con respaldo a descarga.
-- **Validar** (Ctrl+Enter): muestra “✔ Sintaxis correcta” o el error con línea y texto, y marca
-  la línea en el editor (marker + decoración). Clic en un error de la consola salta a la línea.
-- **Cargar ejemplo**: E/S, IF/ELSE anidado con `&&`/`||`, FOR y WHILE.
-- **Acerca de**: integrantes (editar `frontend/src/team.js`).
-- **Código intermedio, Código NASM, Generar ejecutable, Ejecutar**: botones y paneles listos;
-  muestran “Disponible próximamente”.
+- **Abrir** un `.bml` (Ctrl+O). Valida la extensión y el tamaño (máximo 100 KB).
+- **Editar** en Monaco, con números de línea y resaltado de palabras reservadas, `$variables`,
+  comentarios `#! … !#`, números y operadores.
+- **Guardar** como `.bml` (Ctrl+S). Usa la File System Access API en Chrome/Edge y, si no está
+  disponible, descarga el archivo. Los cambios sin guardar se indican con "● sin guardar" en el
+  editor, la barra de estado y el título de la pestaña, y al cerrar la pestaña se pide
+  confirmación.
+- **Validar** (F5 o Ctrl+Enter). Muestra "✔ Sintaxis correcta" o el error con línea y texto, y
+  marca la línea en el editor (subrayado, fondo y punto en el margen). Haz clic en un error de la
+  consola para saltar a esa línea.
+- **Código intermedio** y **Código NASM**. Se habilitan después de validar bien. El resultado se
+  muestra en las pestañas de la derecha, en solo lectura. Mientras el generador no exista,
+  muestran "Generador aún no implementado".
+- **Generar ejecutable**. Se habilita después de generar el NASM. Ejecuta `nasm -f elf64` y
+  `ld`, y descarga el binario `programa`.
+- **Ejecutar**. Se habilita después de generar el ejecutable. Corre el programa con el texto de
+  la pestaña "Entrada (stdin)" y muestra su salida en "Salida" (límite de 5 s).
+- **Cargar ejemplo**: E/S, IF/ELSE anidado con `&&`/`||`, y FOR con WHILE.
+- **Estado**: la barra inferior indica Validando, Generando, Ejecutando o Listo. Durante cada
+  operación los botones quedan deshabilitados.
+
+Si editas el código, los pasos ya hechos se invalidan y hay que volver a validar.
+
+## Contrato con el generador de código
+
+El IDE no necesita cambios cuando llegue el generador. Basta con que `bmlang` cumpla esto:
+
+| Invocación | Debe hacer |
+|---|---|
+| `bmlang < archivo.bml` | (actual) Validar. Imprime `Programa válido` y termina con exit 0, o reporta el error. |
+| `bmlang archivo.bml` | (actual) Igual que la anterior, pero lee el archivo. |
+| `bmlang --tac archivo.bml` | Imprimir **solo el TAC** por stdout y terminar con exit 0. |
+| `bmlang --asm archivo.bml` | Imprimir **solo el NASM x86-64** (Linux, `_start`, syscalls) por stdout y terminar con exit 0. Debe ensamblar con `nasm -f elf64` y enlazar con `ld` sin librerías. |
+
+- **Errores**: van por stderr con exit distinto de 0, en el mismo formato que la validación:
+  `Error: <texto> en la linea N cerca de <token>`. El IDE los marca en el editor.
+- **Opción no implementada**: hoy `main()` en `bmlang.y` responde a cualquier `--opción` con
+  `Error: opcion no soportada: --tac` (exit 2), y el IDE muestra "Generador aún no implementado".
+  Para conectar el generador, maneja `--tac`/`--asm` en ese `main()`.
+- **Orden de las fases**: el backend valida primero (por stdin) y después llama a `--tac` o
+  `--asm`, así que el generador recibe programas sintácticamente válidos. La línea
+  `Programa válido` en stdout se ignora, y una salida vacía cuenta como "no implementado".
+- **E/S del programa**: `READ` debe leer de stdin y `WRITE` escribir en stdout. "Ejecutar" pasa
+  la pestaña "Entrada (stdin)" tal cual.
+
+Para probar "Generar ejecutable" y "Ejecutar" sin el generador, hay un NASM escrito a mano en
+`backend/test/fixtures/hola_mundo.asm`, que lee un entero y lo imprime, y un generador falso en
+`backend/test/fixtures/generador_falso.sh` que cumple este contrato:
+
+```bash
+BMLANG_PATH=$PWD/backend/test/fixtures/generador_falso.sh npm run dev
+```
 
 ## API
 
@@ -126,30 +168,30 @@ exista, el encabezado muestra un recuadro verde "UMES".
 |---|---|---|---|
 | GET | `/api/health` | — | `{ ok, bmlangPath, mode }` o `{ ok: false, message }` |
 | POST | `/api/check` | `{ code }` | `{ ok, errors: [{ line, message }], raw }` |
-| POST | `/api/tac`, `/api/asm`, `/api/build`, `/api/run` | `{ code, stdin? }` | 501 `{ ok: false, errors: [{ message: "Aún no implementado" }] }` |
+| POST | `/api/tac`, `/api/asm` | `{ code }` | `{ ok, output, errors, raw }` |
+| POST | `/api/build` | `{ code }` | `{ ok, output, asm, fileName, executable (base64), errors }` |
+| POST | `/api/run` | `{ code, stdin }` | `{ ok, output, exitCode, errors }` |
 
-Códigos: 400 (falta `code`), 413 (más de 100 KB), 503 (binario no disponible: mensaje claro en `errors`).
+Códigos HTTP:
 
-Para implementar una fase, reemplaza el stub correspondiente en `backend/src/compiler/index.js`
-usando `resolveCommand` y `runProcess` de `runner.js` (ya manejan spawn con argumentos en
-arreglo, timeout y límite de salida).
+- 200: resultado normal, incluidos los errores del programa con `ok: false`.
+- 400: falta `code`.
+- 413: el código o el stdin supera 100 KB.
+- 501: generador aún no implementado (`pending: true`).
+- 503: binario o herramienta no disponible, con el mensaje en `errors`.
 
-## Pruebas
-
-`npm test` corre, contra el `bmlang` real: `ejemplos/entrada_valida.bml`, los tres ejemplos del
-IDE, casos inválidos (falta `;`, falta `}`, token desconocido, `IF` sin cerrar, comentario sin
-cerrar; cada uno con línea y texto) y casos válidos (`$x:2`, `DEC $a,$b;`, IF anidado, `&&`/`||`,
-WHILE, FOR, comentarios `#! !#`).
+Robustez: cada petición usa su propio directorio temporal (`fs.mkdtemp`), que se borra al
+terminar. Los procesos se lanzan con `spawn` y argumentos en arreglo, nunca con un shell. Hay un
+timeout de 5 s y la salida capturada se limita a 100 KB.
 
 ## Limitaciones del analizador actual
 
-- Los errores incluyen la línea y el token cercano; el detalle depende del mensaje genérico de
-  Bison (el backend lo traduce a “error de sintaxis”). En un `;` faltante la línea reportada es
-  la del token siguiente, porque ahí es donde Bison detecta el error.
-- El menos unario (`$a-1`, `-5`, `-$a`, `$b-(-2)`) está soportado desde
-  `docs/propuesta-numeros-negativos.md`; la gramática del PDF equivale a `<factor>::= ... | - <factor>`.
-- Por diseño del lexer, un comentario `#! ... !#` debe cerrarse en la misma línea; el editor
-  lo marca como inválido si no se cierra.
-- Según la gramática, `WRITE` solo acepta una variable y no se permiten comentarios después
-  del `}` final.
-- La generación de código intermedio y NASM todavía no está implementada.
+- El detalle de los errores depende del mensaje genérico de Bison (el backend lo traduce a
+  "error de sintaxis"). Cuando falta un `;`, la línea reportada es la del token siguiente,
+  porque ahí detecta Bison el error.
+- Por diseño del lexer, un comentario `#! … !#` debe cerrarse en la misma línea. Si no se
+  cierra, el editor lo marca como inválido.
+- Según la gramática, `WRITE` solo acepta una variable y no se permiten comentarios después del
+  `}` final.
+- El menos unario (`$a-1`, `-5`, `-$a`, `$b-(-2)`) está soportado. En la gramática del PDF
+  equivale a `<factor>::= … | - <factor>`; ver `docs/propuesta-numeros-negativos.md`.

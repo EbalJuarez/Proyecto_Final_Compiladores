@@ -53,10 +53,16 @@ export default function App() {
   const fileHandleRef = useRef(null);
   const fileInputRef = useRef(null);
   const actionsRef = useRef({});
+  const logEndRef = useRef(null);
 
   const print = useCallback((type, text, line = null) => {
     setLog((prev) => [...prev.slice(-199), { id: crypto.randomUUID(), time: now(), type, text, line }]);
   }, []);
+
+  // La consola sigue a la última línea.
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [log]);
 
   const notify = useCallback((text) => {
     setToast({ text, id: Date.now() });
@@ -377,6 +383,7 @@ export default function App() {
                       {entry.type === 'raw' || entry.type === 'program' ? <pre>{entry.text}</pre> : <span>{entry.text}</span>}
                     </div>
                   ))}
+                  <div ref={logEndRef} />
                 </div>
               ),
             },

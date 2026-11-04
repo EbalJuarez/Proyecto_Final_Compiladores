@@ -24,3 +24,7 @@ desktop.ini
 /compilador/*.o
 /compilador/*.obj
 /salida/
+
+# Playwright
+/test-results/
+/playwright-report/

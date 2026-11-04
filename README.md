@@ -53,6 +53,6 @@ call output;
 - `&&` y `||` generan saltos de cortocircuito. Una comparacion produce 1 o 0.
 - `goto l1;` es un salto incondicional. `ifZ t1 goto l1;` salta si el valor es cero; `ifNZ` salta si es distinto de cero.
 - `READ` se representa con `call input;` y `pop $variable;`. `WRITE` usa `push $variable;` y `call output;`.
-- Los comentarios `#! ... !#` se reconocen, pero no generan instrucciones.
+- Cada comentario completo `#! ... !#` se reconoce como un unico token `COMENTARIO`, sin estados adicionales de Flex. Debe cerrar en la misma linea. Se aceptan comentarios vacios y varios en una linea, sin consumir las instrucciones que haya entre ellos. Una apertura sin cierre es un token invalido. Los comentarios no generan instrucciones TDC.
 
 La implementacion usa un buffer de TDC de 1 MiB y valores de texto de hasta 127 caracteres (identificadores de hasta 126, para conservar el prefijo `$`). Si se supera un limite, se informa un error. Esta etapa reconoce la sintaxis y traduce las instrucciones; todavia no comprueba variables duplicadas o sin declaracion. No ensambla ni ejecuta los programas y no genera NASM.

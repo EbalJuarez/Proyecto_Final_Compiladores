@@ -2,21 +2,14 @@
 #include <stdio.h>
 #include <string.h>
 #include "bmlang.tab.h"
-
 %}
 
 %option yylineno noyywrap
-%x CUERPO_COMENTARIO FIN_COMENTARIO
 
 %%
 
-"#!"                              { BEGIN(CUERPO_COMENTARIO); return INICIO_COMENTARIO; }
-<CUERPO_COMENTARIO>"!#"           { yyless(yyleng - 2); BEGIN(FIN_COMENTARIO); return COMENTARIO; }
-<CUERPO_COMENTARIO>[^!\n]+        { yymore(); }
-<CUERPO_COMENTARIO>"!"            { yymore(); }
-<CUERPO_COMENTARIO>\n             { BEGIN(INITIAL); return INVALIDO; }
-<CUERPO_COMENTARIO><<EOF>>        { BEGIN(INITIAL); return INVALIDO; }
-<FIN_COMENTARIO>"!#"              { BEGIN(INITIAL); return CIERRE_COMENTARIO; }
+"#!"([^!\n]|!+[^!#\n])*!+"#"    { return COMENTARIO; }
+"#!"                              { return INVALIDO; }
 
 "MAIN"          { return MAIN; }
 "DEC"           { return DEC; }

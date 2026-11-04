@@ -1,6 +1,5 @@
 %{
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
 
@@ -11,7 +10,6 @@ int nuevaEtiqueta(void);
 void emitir(const char *formato, ...);
 void escribirEtiqueta(int etiqueta);
 
-/* Se entrega el texto solo si el programa completo es valido. */
 static char codigoTDC[1024 * 1024];
 static size_t longitudTDC = 0;
 static int siguienteTemporal = 1;
@@ -93,7 +91,6 @@ factor: INI_PAREN expresion FIN_PAREN { strcpy($$, $2); }
 | RESTA factor { nuevaTemp($$); emitir("%s = 0 - %s;\n", $$, $2); }
 ;
 
-/* El codigo del ELSE se coloca entre la etiqueta falsa y la de salida. */
 bloque_if: IF INI_PAREN cond_or FIN_PAREN {
     $<control>$.inicio = nuevaEtiqueta();
     $<control>$.fin = nuevaEtiqueta();
@@ -109,7 +106,6 @@ parte_else { escribirEtiqueta($<control>5.fin); }
 parte_else: ELSE INI_LLAVE lista_sent FIN_LLAVE | vacio
 ;
 
-/* Se imprime el inicio antes de traducir la condicion: se recalcula en cada vuelta. */
 bloque_while: WHILE INI_PAREN {
     $<control>$.inicio = nuevaEtiqueta();
     $<control>$.fin = nuevaEtiqueta();
@@ -124,7 +120,6 @@ INI_LLAVE lista_sent FIN_LLAVE {
 }
 ;
 
-/* El salto al cuerpo evita ejecutar el incremento antes de la primera vuelta. */
 bloque_for: FOR INI_PAREN asignacion PYC {
     $<control>$.inicio = nuevaEtiqueta();
     $<control>$.fin = nuevaEtiqueta();
@@ -147,7 +142,6 @@ INI_LLAVE lista_sent FIN_LLAVE {
 }
 ;
 
-/* Las acciones intermedias permiten omitir la segunda condicion con cortocircuito. */
 cond_or: cond_or OR {
     nuevaTemp($<salto>$.temporal);
     $<salto>$.fin = nuevaEtiqueta();
@@ -190,7 +184,6 @@ comparador: IGUAL { strcpy($$, "=="); }
 | MAYOR_IGUAL { strcpy($$, ">="); }
 ;
 
-/* Se conserva $ para distinguir las variables de los temporales t1, t2, etc. */
 variable: SIMBOLO_VARIABLE ID {
     $$[0] = '$'; strcpy($$ + 1, $2);
 }
@@ -199,7 +192,7 @@ variable: SIMBOLO_VARIABLE ID {
 comentario: INICIO_COMENTARIO COMENTARIO CIERRE_COMENTARIO
 ;
 
-vacio: /* vacio */
+vacio:
 ;
 %%
 
@@ -230,52 +223,28 @@ void escribirEtiqueta(int etiqueta) {
     emitir("l%d:\n", etiqueta);
 }
 
-int main(int argc, char **argv) {
-    extern FILE *yyin;
-    extern int yylex_destroy(void);
-    FILE *salida = stdout;
+int main(void) {
     int resultado;
-    if (argc > 3) {
-        fprintf(stderr, "Uso: %s [programa.bml [programa.tac]]\n", argv[0]);
-        return 1;
-    }
-    if (argc == 3 && strcmp(argv[1], argv[2]) == 0) {
-        fprintf(stderr, "Error: la entrada y la salida deben ser archivos distintos\n");
-        return 1;
-    }
-    if (argc >= 2) {
-        yyin = fopen(argv[1], "r");
-        if (!yyin) { perror(argv[1]); return 1; }
-    }
+
     emitir("main:\n");
     resultado = yyparse();
-    if (argc >= 2) fclose(yyin);
-    yylex_destroy();
-    if (resultado != 0) return resultado;
+
+    if (resultado != 0) {
+        return resultado;
+    }
+
     if (errorEscritura) {
-        fprintf(stderr, "Error: el codigo TDC supera el limite de 1 MiB\n");
+        fprintf(stderr, "Error al generar el TDC\n");
         return 1;
     }
-    if (argc == 3) {
-        salida = fopen(argv[2], "w");
-        if (!salida) { perror(argv[2]); return 1; }
-    }
-    if (fwrite(codigoTDC, 1, longitudTDC, salida) != longitudTDC) errorEscritura = 1;
-    if (salida != stdout) {
-        if (fclose(salida) != 0) errorEscritura = 1;
-    } else if (fflush(stdout) != 0) errorEscritura = 1;
-    if (errorEscritura) { fprintf(stderr, "Error al guardar el TDC\n"); return 1; }
-    fprintf(stderr, "Programa valido. TDC generado correctamente.\n");
+
+    printf("%s", codigoTDC);
     return 0;
 }
 
 void yyerror(const char *mensaje) {
     extern int yylineno;
     extern char *yytext;
-    extern int linea_comentario;
-    if (yychar == INVALIDO && linea_comentario != 0) {
-        fprintf(stderr, "Error: comentario sin cerrar en la linea %d cerca de #!; se esperaba !# antes del fin de linea\n", linea_comentario);
-        return;
-    }
+
     fprintf(stderr, "Error: %s en la linea %d cerca de %s\n", mensaje, yylineno, yytext);
 }

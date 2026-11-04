@@ -19,25 +19,19 @@ gcc -Wall -Wextra -o bmlang_tdc/bmlang bmlang_tdc/bmlang.tab.c bmlang_tdc/lex.yy
 
 ## Generar el TDC
 
-Para leer un `.bml` y guardar la traduccion en un `.tac`:
+El programa lee desde la entrada estandar y muestra el TDC en consola:
 
 ```sh
-./bmlang_tdc/bmlang ejemplos/entrada_valida.bml programa.tac
+./bmlang_tdc/bmlang < ejemplos/entrada_valida.bml
 ```
 
-Para imprimir el TDC en consola:
-
-```sh
-./bmlang_tdc/bmlang ejemplos/entrada_valida.bml
-```
-
-Tambien se puede usar entrada estandar y redireccionar la salida:
+Para guardarlo en un archivo `.tac`, se redirige la salida:
 
 ```sh
 ./bmlang_tdc/bmlang < ejemplos/entrada_valida.bml > programa.tac
 ```
 
-Los mensajes de diagnostico se escriben en stderr. El TDC se guarda en memoria hasta terminar el analisis: si la sintaxis falla, no se entrega codigo parcial. Con el argumento de salida explicito, un error de analisis conserva el archivo de salida anterior. Una redireccion del shell (`>`) si puede vaciarlo antes de ejecutar el compilador.
+Los errores se escriben en stderr con el mensaje, la linea y el texto cercano. El TDC se guarda en memoria hasta terminar el analisis: si falla, no se imprime codigo parcial. La redireccion `>` puede vaciar un archivo de salida anterior antes de ejecutar el programa.
 
 ## Formato del TDC
 

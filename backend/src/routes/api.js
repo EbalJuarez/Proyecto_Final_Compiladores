@@ -51,13 +51,17 @@ api.post('/check', handle(async (req, res) => {
   res.json(await checkSyntax(readCode(req.body)));
 }));
 
-// Stubs de las fases siguientes (ver backend/src/compiler/index.js).
+// Fases de generación (ver el contrato en backend/src/compiler/index.js).
+// 501 solo cuando el generador aún no existe; los errores del programa son 200 con ok: false.
 for (const [route, phase] of [['/tac', generateTac], ['/asm', generateAsm], ['/build', buildExecutable], ['/run', runProgram]]) {
   api.post(route, handle(async (req, res) => {
     const code = readCode(req.body);
     const stdin = typeof req.body.stdin === 'string' ? req.body.stdin : '';
+    if (Buffer.byteLength(stdin, 'utf8') > config.maxCodeBytes) {
+      throw new RequestError(413, `La entrada (stdin) supera el límite de ${config.maxCodeBytes / 1024} KB.`);
+    }
     const result = await phase({ code, stdin });
-    res.status(result.ok ? 200 : 501).json(result);
+    res.status(result.pending ? 501 : 200).json(result);
   }));
 }
 

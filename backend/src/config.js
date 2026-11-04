@@ -18,7 +18,11 @@ export const config = {
   // auto: en Windows, si el binario es ELF (Linux) se ejecuta con wsl.exe; si no, directo.
   runner: (process.env.BMLANG_RUNNER || 'auto').toLowerCase(),
   wslDistro: process.env.BMLANG_WSL_DISTRO || '',
+  // Ensamblador y enlazador para "Generar ejecutable" / "Ejecutar" (por defecto, los del PATH).
+  nasmPath: process.env.NASM_PATH || 'nasm',
+  ldPath: process.env.LD_PATH || 'ld',
+  // Límite de tiempo del analizador, de nasm/ld y del programa compilado.
   timeoutMs: Number(process.env.BMLANG_TIMEOUT_MS) || 5000,
   maxCodeBytes: 100 * 1024,
-  maxOutputBytes: 64 * 1024,
+  maxOutputBytes: 100 * 1024,
 };

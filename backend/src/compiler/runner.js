@@ -90,10 +90,10 @@ function collector(limit) {
 }
 
 /**
- * Ejecuta un proceso alimentando `inputFile` por stdin, con timeout y límite de salida.
- * Rechaza solo si el proceso no pudo lanzarse (ENOENT, EACCES...).
+ * Ejecuta un proceso alimentando `inputFile` (o el texto `input`) por stdin, con timeout
+ * y límite de salida. Rechaza solo si el proceso no pudo lanzarse (ENOENT, EACCES...).
  */
-export function runProcess({ command, args, inputFile, cwd, timeoutMs = config.timeoutMs, maxOutputBytes = config.maxOutputBytes }) {
+export function runProcess({ command, args, inputFile, input, cwd, timeoutMs = config.timeoutMs, maxOutputBytes = config.maxOutputBytes }) {
   return new Promise((resolve, reject) => {
     let settled = false;
     let timedOut = false;
@@ -132,16 +132,16 @@ export function runProcess({ command, args, inputFile, cwd, timeoutMs = config.t
     });
 
     if (inputFile) {
-      const input = createReadStream(inputFile);
-      input.on('error', () => child.kill('SIGKILL'));
-      input.pipe(child.stdin);
+      const stream = createReadStream(inputFile);
+      stream.on('error', () => child.kill('SIGKILL'));
+      stream.pipe(child.stdin);
     } else {
-      child.stdin.end();
+      child.stdin.end(input ?? '');
     }
   });
 }
 
-function spawnErrorMessage(err, { command, mode }) {
+export function spawnErrorMessage(err, { command, mode }) {
   if (err.code === 'ENOENT') {
     return mode === 'wsl'
       ? 'No se encontró wsl.exe. El binario es de Linux: instala WSL o compílalo para Windows y configura BMLANG_PATH.'
@@ -172,20 +172,33 @@ function startupFailure({ exitCode, stdout, stderr }, mode) {
   return null;
 }
 
-/**
- * Guarda el código en un directorio temporal único, lo pasa por stdin a `bmlang`
- * y devuelve el resultado crudo { exitCode, stdout, stderr, timedOut }.
- */
-export async function runBmlang(code, binPath = config.bmlangPath) {
-  const cmd = await resolveCommand(binPath);
+/** Ejecuta `fn(dir)` con un directorio temporal único que se borra al terminar. */
+export async function withTempDir(fn) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'bmlang-'));
   try {
+    return await fn(dir);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+}
+
+/**
+ * Guarda el código en un directorio temporal único y ejecuta `bmlang`. Sin `flag`
+ * el código va por stdin (validación); con `flag` (--tac, --asm) se pasa
+ * `bmlang <flag> programa.bml` según el contrato con el generador, y también por
+ * stdin para que un binario que ignore los argumentos no se quede esperando.
+ * Devuelve el resultado crudo { exitCode, stdout, stderr, timedOut }.
+ */
+export async function runBmlang(code, { binPath = config.bmlangPath, flag } = {}) {
+  const cmd = await resolveCommand(binPath);
+  return withTempDir(async (dir) => {
     const inputFile = path.join(dir, 'programa.bml');
     await fs.writeFile(inputFile, code, 'utf8');
+    const args = flag ? [...cmd.args, flag, cmd.mode === 'wsl' ? toWslPath(inputFile) : inputFile] : cmd.args;
 
     let result;
     try {
-      result = await runProcess({ ...cmd, inputFile });
+      result = await runProcess({ ...cmd, args, inputFile });
     } catch (err) {
       throw new CompilerUnavailableError(spawnErrorMessage(err, cmd));
     }
@@ -195,7 +208,5 @@ export async function runBmlang(code, binPath = config.bmlangPath) {
       if (failure) throw new CompilerUnavailableError(failure);
     }
     return result;
-  } finally {
-    await fs.rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
-  }
+  });
 }

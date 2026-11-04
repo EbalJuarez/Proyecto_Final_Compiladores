@@ -13,3 +13,4 @@
 /tdc_nasm/*.o
 /tdc_nasm/*.obj
 /salida/
+/*.tac

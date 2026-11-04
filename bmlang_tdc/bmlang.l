@@ -1,5 +1,6 @@
 %{
 #include <stdio.h>
+#include <string.h>
 #include "bmlang.tab.h"
 
 /* Linea inicial de un comentario pendiente de cierre. */
@@ -49,8 +50,20 @@ int linea_comentario = 0;
 "*"             { return MULTIPLICACION; }
 "/"             { return DIVISION; }
 "$"             { return SIMBOLO_VARIABLE; }
-[a-zA-Z_][a-zA-Z0-9_]*   { return ID; }
--?[0-9]+                 { return NUMERO; }
+[a-zA-Z_][a-zA-Z0-9_]*   {
+    if ((size_t)yyleng + 1 >= sizeof(yylval.cadena)) {
+        return INVALIDO;
+    }
+    strcpy(yylval.cadena, yytext);
+    return ID;
+}
+[0-9]+                 {
+    if ((size_t)yyleng >= sizeof(yylval.cadena)) {
+        return INVALIDO;
+    }
+    strcpy(yylval.cadena, yytext);
+    return NUMERO;
+}
 \n                      { /* ignorar salto de línea */ }
 [ \t\r]+                { /* ignorar espacios */ }
 .                       { return INVALIDO; }

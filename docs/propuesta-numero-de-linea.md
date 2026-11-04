@@ -1,6 +1,6 @@
 # Propuesta: reportar el número de línea en los errores
 
-**Estado: NO aplicada.** `compilador/bmlang.l` y `compilador/bmlang.y` no se han modificado.
+**Estado: aplicada** en el commit `c8c16eb` (`%option yylineno` y `yyerror` con línea y token). Se conserva como referencia.
 
 Hoy `yyerror` imprime solo `Error: syntax error` (stderr, exit 1), sin línea, así que el IDE
 muestra el error pero no puede marcarlo en el editor. El adaptador del backend

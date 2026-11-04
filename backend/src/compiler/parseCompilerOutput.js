@@ -13,6 +13,12 @@
 const ERROR_LINE = /^\s*error\b(?:\s+(?:en\s+(?:la\s+)?)?(?:l[ií]nea|line)\s+(\d+))?\s*[:,-]?\s*(.*)$/i;
 const LINE_IN_TEXT = /\b(?:l[ií]nea|line)\s+(\d+)/i;
 
+/** Mensaje en español; al final del archivo yytext está vacío y queda "cerca de" sin token. */
+const humanize = (message) =>
+  message
+    .replace(/^syntax error\b/i, 'error de sintaxis')
+    .replace(/\bcerca de\s*$/i, 'cerca del fin del archivo');
+
 export function parseCompilerOutput({ stdout = '', stderr = '', exitCode = 0 } = {}) {
   const raw = [stdout, stderr].map((s) => s.trim()).filter(Boolean).join('\n');
   const errors = [];
@@ -20,7 +26,7 @@ export function parseCompilerOutput({ stdout = '', stderr = '', exitCode = 0 } =
   for (const text of `${stderr}\n${stdout}`.split(/\r?\n/)) {
     const match = ERROR_LINE.exec(text);
     if (!match) continue;
-    const message = match[2].trim() || 'Error de sintaxis';
+    const message = humanize(match[2].trim()) || 'Error de sintaxis';
     let line = match[1] ? Number(match[1]) : null;
     if (line === null) {
       const inner = LINE_IN_TEXT.exec(message);

@@ -14,7 +14,7 @@ test('programa válido: exit 0 y "Programa válido" en stdout', () => {
 test('formato anterior del binario: "Error: syntax error" sin línea', () => {
   const r = parseCompilerOutput({ stdout: '', stderr: 'Error: syntax error\n', exitCode: 1 });
   assert.equal(r.ok, false);
-  assert.deepEqual(r.errors, [{ line: null, message: 'syntax error' }]);
+  assert.deepEqual(r.errors, [{ line: null, message: 'error de sintaxis' }]);
   assert.equal(r.raw, 'Error: syntax error');
 });
 
@@ -23,12 +23,18 @@ test('formato actual del analizador incluye la línea después del mensaje', () 
     stderr: 'Error: syntax error en la linea 4 cerca de WRITE\n',
     exitCode: 1,
   });
-  assert.deepEqual(r.errors, [{ line: 4, message: 'syntax error en la linea 4 cerca de WRITE' }]);
+  assert.deepEqual(r.errors, [{ line: 4, message: 'error de sintaxis en la linea 4 cerca de WRITE' }]);
+  assert.equal(r.raw, 'Error: syntax error en la linea 4 cerca de WRITE');
+});
+
+test('error al final del archivo: yytext vacío', () => {
+  const r = parseCompilerOutput({ stderr: 'Error: syntax error en la linea 7 cerca de \n', exitCode: 1 });
+  assert.deepEqual(r.errors, [{ line: 7, message: 'error de sintaxis en la linea 7 cerca del fin del archivo' }]);
 });
 
 test('formato propuesto: "Error línea N: texto"', () => {
   const r = parseCompilerOutput({ stderr: 'Error línea 3: syntax error, unexpected WRITE\n', exitCode: 1 });
-  assert.deepEqual(r.errors, [{ line: 3, message: 'syntax error, unexpected WRITE' }]);
+  assert.deepEqual(r.errors, [{ line: 3, message: 'error de sintaxis, unexpected WRITE' }]);
 });
 
 test('variantes de línea: "en la línea", "linea" sin tilde y "line"', () => {

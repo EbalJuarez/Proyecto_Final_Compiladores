@@ -25,16 +25,20 @@ IDE solo lo invoca y muestra el resultado.
 │   │       ├── runner.js             ← spawn, timeout, temporales, WSL
 │   │       └── index.js              ← checkSyntax + stubs tac/asm/build/run
 │   └── test/                         ← pruebas del adaptador y end-to-end
+├── generacion/                       ← esqueletos de código intermedio y NASM (siguiente etapa)
 ├── docs/
 │   ├── Gramatica proyecto.pdf
-│   └── propuesta-numero-de-linea.md
+│   ├── propuesta-numero-de-linea.md  ← ya aplicada
+│   └── propuesta-numeros-negativos.md ← pendiente: "$a-1" se rechaza
 ├── ejemplos/                         ← programas fuente .bml
 └── package.json                      ← levanta backend y frontend juntos
 ```
 
 ## Requisitos
 
-- Node.js 18 o superior (probado con Node 26) y npm.
+- Node.js 18 o superior (probado con Node 26) y npm. En Linux sin permisos de administrador
+  puedes descomprimir el binario oficial de <https://nodejs.org> en `~/.local/opt` y agregar
+  su carpeta `bin` al `PATH`.
 - El ejecutable `bmlang` funcionando:
   - **Windows**: el binario es de Linux, así que se ejecuta automáticamente con **WSL**
     (`wsl.exe -e /mnt/c/.../bmlang`). Necesitas WSL con una distribución instalada.
@@ -81,7 +85,7 @@ Variables de entorno del servidor:
 
 | Variable | Por defecto | Descripción |
 |---|---|---|
-| `BMLANG_PATH` | `../compilador/bmlang` | Ruta al ejecutable. Las rutas relativas se resuelven desde `backend/`. |
+| `BMLANG_PATH` | `../compilador/bmlang` (en Windows, `../compilador/bmlang.exe` si existe) | Ruta al ejecutable. Las rutas relativas se resuelven desde `backend/`. |
 | `BMLANG_RUNNER` | `auto` | `auto` (WSL si estás en Windows y el binario es ELF), `wsl` o `native`. |
 | `BMLANG_WSL_DISTRO` | (distro por defecto) | Distribución de WSL a usar, p. ej. `Ubuntu`. |
 | `BMLANG_TIMEOUT_MS` | `5000` | Tiempo máximo de ejecución del analizador. |
@@ -109,8 +113,8 @@ exista, el encabezado muestra un recuadro verde "UMES".
 - **Abrir** `.bml` (Ctrl+O), con validación de extensión y tamaño (100 KB).
 - **Editar** en Monaco con números de línea y resaltado de BMLang.
 - **Guardar** `.bml` (Ctrl+S): File System Access API (Chrome/Edge) con respaldo a descarga.
-- **Validar** (Ctrl+Enter): muestra “✔ Sintaxis correcta” o el error; si el analizador reporta
-  la línea, la marca en el editor (ver *Limitaciones*). Clic en un error de la consola salta a la línea.
+- **Validar** (Ctrl+Enter): muestra “✔ Sintaxis correcta” o el error con línea y texto, y marca
+  la línea en el editor (marker + decoración). Clic en un error de la consola salta a la línea.
 - **Cargar ejemplo**: E/S, IF/ELSE anidado con `&&`/`||`, FOR y WHILE.
 - **Acerca de**: integrantes (editar `frontend/src/team.js`).
 - **Código intermedio, Código NASM, Generar ejecutable, Ejecutar**: botones y paneles listos;
@@ -130,8 +134,22 @@ Para implementar una fase, reemplaza el stub correspondiente en `backend/src/com
 usando `resolveCommand` y `runProcess` de `runner.js` (ya manejan spawn con argumentos en
 arreglo, timeout y límite de salida).
 
+## Pruebas
+
+`npm test` corre, contra el `bmlang` real: `ejemplos/entrada_valida.bml`, los tres ejemplos del
+IDE, casos inválidos (falta `;`, falta `}`, token desconocido, `IF` sin cerrar, comentario sin
+cerrar; cada uno con línea y texto) y casos válidos (`$x:2`, `DEC $a,$b;`, IF anidado, `&&`/`||`,
+WHILE, FOR, comentarios `#! !#`).
+
 ## Limitaciones del analizador actual
 
-- Los errores incluyen la línea y el token cercano, pero los demás detalles de sintaxis aún
-  dependen del mensaje genérico de Bison.
+- Los errores incluyen la línea y el token cercano; el detalle depende del mensaje genérico de
+  Bison (el backend lo traduce a “error de sintaxis”). En un `;` faltante la línea reportada es
+  la del token siguiente, porque ahí es donde Bison detecta el error.
+- `$a-1` (resta sin espacios) se rechaza porque el lexer lee `-1` como número. Ver
+  `docs/propuesta-numeros-negativos.md` (cambio mínimo probado, **no aplicado**).
+- Por diseño del lexer, un comentario `#! ... !#` debe cerrarse en la misma línea; el editor
+  lo marca como inválido si no se cierra.
+- Según la gramática, `WRITE` solo acepta una variable y no se permiten comentarios después
+  del `}` final.
 - La generación de código intermedio y NASM todavía no está implementada.

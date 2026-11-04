@@ -16,7 +16,9 @@ export function registerBmlang(monaco) {
     keywords: KEYWORDS,
     tokenizer: {
       root: [
-        [/#!/, 'comment', '@comment'],
+        // bmlang.l exige que el comentario cierre en la misma línea: sin "!#" se marca inválido.
+        [/#!.*?!#/, 'comment'],
+        [/#!.*$/, 'invalid'],
         [/\$[a-zA-Z_]\w*/, 'variable'],
         [/[a-zA-Z_]\w*/, { cases: { '@keywords': 'keyword', '@default': 'identifier' } }],
         [/\d+/, 'number'],
@@ -26,11 +28,6 @@ export function registerBmlang(monaco) {
         [/[;,]/, 'delimiter'],
         [/\s+/, 'white'],
         [/./, 'invalid'],
-      ],
-      comment: [
-        [/!#/, 'comment', '@pop'],
-        [/[^!]+/, 'comment'],
-        [/!/, 'comment'],
       ],
     },
   });

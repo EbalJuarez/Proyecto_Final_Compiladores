@@ -105,6 +105,10 @@ export function runProcess({ command, args, inputFile, cwd, timeoutMs = config.t
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill('SIGKILL');
+      // Un nieto (p. ej. bajo wsl.exe o un script) puede seguir con las tuberías abiertas
+      // y retrasar 'close'; se cierran aquí para responder al vencer el tiempo.
+      child.stdout.destroy();
+      child.stderr.destroy();
     }, timeoutMs);
 
     child.stdout.on('data', (c) => stdout.push(c));

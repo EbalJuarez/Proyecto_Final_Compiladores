@@ -1,6 +1,6 @@
 MAIN {
     DEC $a;
-    $a <= 1;
+    $a => 1;
     IF ($a < 5) {
         WRITE $a;
 

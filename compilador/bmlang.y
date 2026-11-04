@@ -88,8 +88,27 @@ vacio: /* vacio */
 
 %%
 
-int main(void)
+/*
+ * Uso: bmlang [--tac | --asm] [archivo.bml]   (sin archivo lee de stdin)
+ * --tac y --asm los implementa el generador de código; mientras tanto se
+ * responde "opcion no soportada" (exit 2) y el IDE muestra "Generador aún no implementado".
+ */
+int main(int argc, char **argv)
 {
+    extern FILE *yyin;
+    const char *archivo = NULL;
+    for (int i = 1; i < argc; i++) {
+        if (argv[i][0] == '-' && argv[i][1] == '-') {
+            fprintf(stderr, "Error: opcion no soportada: %s\n", argv[i]);
+            return 2;
+        }
+        archivo = argv[i];
+    }
+    if (archivo != NULL && (yyin = fopen(archivo, "r")) == NULL) {
+        fprintf(stderr, "Error: no se pudo abrir %s\n", archivo);
+        return 2;
+    }
+
     int resultado = yyparse();
     if (resultado == 0) {
         printf("Programa válido\n");

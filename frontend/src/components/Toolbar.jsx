@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { EXAMPLES } from '../examples.js';
 
-const SOON = 'Disponible próximamente';
-
 function Logo() {
   const [failed, setFailed] = useState(false);
   if (failed) {
@@ -54,7 +52,11 @@ function ExamplesMenu({ disabled, onLoad }) {
   );
 }
 
-export default function Toolbar({ busy, onOpen, onSave, onLoadExample, onValidate, onPending, onAbout }) {
+/**
+ * `steps`: botones de generación en orden [{ id, label, busyLabel, enabled, title }].
+ * Un paso se habilita cuando el anterior terminó bien para el código actual.
+ */
+export default function Toolbar({ busy, steps, onOpen, onSave, onLoadExample, onValidate, onStep, onAbout }) {
   return (
     <header className="topbar">
       <div className="brand">
@@ -70,12 +72,19 @@ export default function Toolbar({ busy, onOpen, onSave, onLoadExample, onValidat
         </div>
 
         <div className="group">
-          <button type="button" className="primary" disabled={Boolean(busy)} onClick={onValidate} title="Análisis léxico y sintáctico (Ctrl+Enter)">
+          <button type="button" className="primary" disabled={Boolean(busy)} onClick={onValidate} title="Análisis léxico y sintáctico (F5)">
             {busy === 'check' ? 'Validando…' : 'Validar'}
           </button>
-          {['Código intermedio', 'Código NASM', 'Generar ejecutable', 'Ejecutar'].map((label) => (
-            <button key={label} type="button" className="pending" disabled={Boolean(busy)} onClick={() => onPending(label)} title={SOON}>
-              {label}
+          {steps.map((step) => (
+            <button
+              key={step.id}
+              type="button"
+              data-step={step.id}
+              disabled={Boolean(busy) || !step.enabled}
+              onClick={() => onStep(step.id)}
+              title={step.title}
+            >
+              {busy === step.id ? step.busyLabel : step.label}
             </button>
           ))}
         </div>

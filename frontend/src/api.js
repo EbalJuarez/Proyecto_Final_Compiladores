@@ -16,10 +16,12 @@ async function post(path, body) {
   }
 }
 
+// Todas devuelven { ok, errors: [{ line, message }], raw?, output?, pending? }.
+// `pending: true` significa que bmlang aún no soporta la fase ("Generador aún no implementado").
 export const checkSyntax = (code) => post('/check', { code });
 export const generateTac = (code) => post('/tac', { code });
 export const generateAsm = (code) => post('/asm', { code });
-export const buildExecutable = (code) => post('/build', { code });
+export const buildExecutable = (code) => post('/build', { code }); // + { executable (base64), fileName }
 export const runProgram = (code, stdin) => post('/run', { code, stdin });
 
 export async function getHealth() {

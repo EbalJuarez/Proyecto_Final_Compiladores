@@ -13,8 +13,8 @@ export async function readBmlFile(file) {
   return file.text();
 }
 
-function downloadBlob(text, name) {
-  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+function downloadBlob(data, name, type = 'text/plain;charset=utf-8') {
+  const url = URL.createObjectURL(new Blob([data], { type }));
   const a = document.createElement('a');
   a.href = url;
   a.download = name;
@@ -49,4 +49,10 @@ export async function saveBmlFile(text, suggestedName, handle) {
 
   downloadBlob(text, name);
   return { name, handle: null };
+}
+
+/** Descarga el ejecutable que devuelve /api/build (base64). */
+export function downloadBinary(base64, name) {
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  downloadBlob(bytes, name, 'application/octet-stream');
 }

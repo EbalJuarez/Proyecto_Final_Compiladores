@@ -63,10 +63,6 @@ button.primary {
 button.primary:hover:not(:disabled) {
   background: var(--umes-hover);
 }
-button.pending {
-  color: var(--muted);
-  border-style: dashed;
-}
 
 code {
   font-family: var(--mono);
@@ -233,10 +229,8 @@ code {
 .placeholder p {
   margin: 4px 0;
 }
-.code-out {
-  margin: 0;
-  padding: 10px 12px;
-  font: 13px/1.5 var(--mono);
+.result-editor {
+  height: 100%;
 }
 
 /* ---------- Console ---------- */
@@ -267,6 +261,11 @@ code {
 }
 .log-hint {
   color: var(--warn);
+}
+.log-program pre {
+  color: var(--text);
+  border-left: 2px solid var(--accent);
+  padding-left: 8px;
 }
 .log.clickable {
   cursor: pointer;

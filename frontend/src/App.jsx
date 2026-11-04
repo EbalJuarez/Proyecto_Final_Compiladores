@@ -2,20 +2,41 @@ import Editor from '@monaco-editor/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from './api.js';
 import AboutModal from './components/AboutModal.jsx';
+import ResultView from './components/ResultView.jsx';
 import Tabs from './components/Tabs.jsx';
 import Toolbar from './components/Toolbar.jsx';
 import { LANGUAGE_ID, registerBmlang, THEME_ID } from './editor/bmlangLanguage.js';
 import { DEFAULT_CODE } from './examples.js';
-import { readBmlFile, saveBmlFile } from './fileOps.js';
+import { downloadBinary, readBmlFile, saveBmlFile } from './fileOps.js';
 
 const MARKER_OWNER = 'bmlang';
 const now = () => new Date().toLocaleTimeString('es-GT', { hour12: false });
+
+// Etapas del flujo: cada botón exige que la anterior haya terminado bien para el código actual.
+const STAGE = { NONE: 0, VALID: 1, ASM: 2, BUILT: 3 };
+
+const STEPS = [
+  { id: 'tac', label: 'Código intermedio', busyLabel: 'Generando…', status: 'Generando código intermedio…', needs: STAGE.VALID, missing: 'Primero valida el programa' },
+  { id: 'asm', label: 'Código NASM', busyLabel: 'Generando…', status: 'Generando código NASM…', needs: STAGE.VALID, missing: 'Primero valida el programa' },
+  { id: 'build', label: 'Generar ejecutable', busyLabel: 'Generando…', status: 'Generando ejecutable…', needs: STAGE.ASM, missing: 'Primero genera el código NASM' },
+  { id: 'run', label: 'Ejecutar', busyLabel: 'Ejecutando…', status: 'Ejecutando…', needs: STAGE.BUILT, missing: 'Primero genera el ejecutable' },
+];
+
+const CALLS = {
+  tac: (code) => api.generateTac(code),
+  asm: (code) => api.generateAsm(code),
+  build: (code) => api.buildExecutable(code),
+  run: (code, stdin) => api.runProgram(code, stdin),
+};
+
+const EMPTY_RESULT = { status: 'empty', text: '' };
 
 export default function App() {
   const [code, setCode] = useState(DEFAULT_CODE);
   const [fileName, setFileName] = useState('programa.bml');
   const [dirty, setDirty] = useState(false);
-  const [busy, setBusy] = useState(null); // null | 'check' | 'tac' | ...
+  const [busy, setBusy] = useState(null); // null | 'check' | 'tac' | 'asm' | 'build' | 'run'
+  const [stage, setStage] = useState(STAGE.NONE);
   const [log, setLog] = useState([]);
   const [stdin, setStdin] = useState('');
   const [rightTab, setRightTab] = useState('tac');
@@ -24,9 +45,7 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
   const [health, setHealth] = useState(null);
-  // Salidas de las fases futuras (se llenarán cuando existan /api/tac y /api/asm).
-  const [tacOutput] = useState('');
-  const [asmOutput] = useState('');
+  const [results, setResults] = useState({ tac: EMPTY_RESULT, asm: EMPTY_RESULT });
 
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
@@ -56,7 +75,9 @@ export default function App() {
     });
   }, [print]);
 
+  // Aviso al cerrar la pestaña con cambios sin guardar, y "●" en el título.
   useEffect(() => {
+    document.title = `${dirty ? '● ' : ''}${fileName} — BMLang IDE`;
     const warn = (e) => {
       if (!dirty) return;
       e.preventDefault();
@@ -64,7 +85,24 @@ export default function App() {
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
+  }, [dirty, fileName]);
+
+  // Atajos globales (también con el foco en el editor): Ctrl+S, Ctrl+O, F5 y Ctrl+Enter.
+  useEffect(() => {
+    const onKey = (e) => {
+      const ctrl = e.ctrlKey || e.metaKey;
+      let action = null;
+      if (ctrl && e.key.toLowerCase() === 's') action = 'save';
+      else if (ctrl && e.key.toLowerCase() === 'o') action = 'openFile';
+      else if (e.key === 'F5' || (ctrl && e.key === 'Enter')) action = 'validate';
+      if (!action) return;
+      e.preventDefault(); // F5 no recarga la página; Ctrl+S/O no abren los diálogos del navegador
+      e.stopPropagation();
+      actionsRef.current[action]();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
 
   // ---------- Marcas de error en Monaco ----------
   const clearMarks = useCallback(() => {
@@ -108,14 +146,32 @@ export default function App() {
     editor.focus();
   }, []);
 
+  /** Muestra errores en la consola. Solo los del programa .bml se marcan en el editor. */
+  const reportErrors = useCallback((result) => {
+    const fromAsm = result.stage === 'nasm' || result.stage === 'ld';
+    for (const err of result.errors) {
+      const where = err.line ? `${fromAsm ? 'NASM, línea' : 'Línea'} ${err.line}: ` : '';
+      print('error', `✖ ${where}${err.message}`, fromAsm ? null : err.line ?? null);
+    }
+    if (!fromAsm) markErrors(result.errors);
+    if (result.raw) print('raw', result.raw);
+  }, [markErrors, print]);
+
+  // Cualquier cambio al código invalida los pasos ya hechos.
+  const resetPipeline = useCallback(() => {
+    clearMarks();
+    setStage(STAGE.NONE);
+  }, [clearMarks]);
+
   // ---------- Acciones ----------
   const loadText = useCallback((text, name, handle = null) => {
     setCode(text);
     setFileName(name);
     setDirty(false);
     fileHandleRef.current = handle;
-    clearMarks();
-  }, [clearMarks]);
+    resetPipeline();
+    setResults({ tac: EMPTY_RESULT, asm: EMPTY_RESULT });
+  }, [resetPipeline]);
 
   const handleFileChosen = async (e) => {
     const file = e.target.files?.[0];
@@ -150,29 +206,68 @@ export default function App() {
     const source = editorRef.current?.getValue() ?? code;
     setBusy('check');
     setBottomTab('output');
-    clearMarks();
+    resetPipeline();
     print('info', 'Validando sintaxis…');
     try {
       const result = await api.checkSyntax(source);
       if (result.ok) {
         print('ok', '✔ Sintaxis correcta');
+        setStage(STAGE.VALID);
       } else {
-        for (const err of result.errors) {
-          const where = err.line ? `Línea ${err.line}: ` : '';
-          print('error', `✖ ${where}${err.message}`, err.line ?? null);
-        }
+        reportErrors(result);
         if (!result.unavailable && result.errors.some((e) => !e.line)) {
           print('hint', 'El analizador no reporta el número de línea, por eso no se puede marcar en el editor.');
         }
-        markErrors(result.errors);
+        return;
       }
       if (result.raw) print('raw', result.raw);
     } finally {
       setBusy(null);
     }
-  }, [busy, code, clearMarks, markErrors, print]);
+  }, [busy, code, reportErrors, resetPipeline, print]);
 
-  const pending = useCallback((label) => notify(`${label}: disponible próximamente`), [notify]);
+  const runStep = useCallback(async (id) => {
+    const step = STEPS.find((s) => s.id === id);
+    if (busy || stage < step.needs) return;
+    const source = editorRef.current?.getValue() ?? code;
+    setBusy(id);
+    setBottomTab('output');
+    if (id === 'tac' || id === 'asm') setRightTab(id);
+    print('info', step.status);
+    try {
+      const result = await CALLS[id](source, stdin);
+      const setResult = (status, text = '') => (id === 'tac' || id === 'asm') && setResults((r) => ({ ...r, [id]: { status, text } }));
+
+      if (result.pending) {
+        setResult('pending');
+        print('hint', `${step.label}: Generador aún no implementado`);
+        notify('Generador aún no implementado');
+        return;
+      }
+      if (!result.ok) {
+        setResult('error');
+        if (id === 'run' && result.output) print('program', result.output);
+        reportErrors(result);
+        return;
+      }
+
+      if (id === 'tac' || id === 'asm') {
+        setResult('ok', result.output);
+        print('ok', `✔ ${step.label} generado`);
+        if (id === 'asm') setStage((s) => Math.max(s, STAGE.ASM));
+      } else if (id === 'build') {
+        if (result.asm) setResults((r) => ({ ...r, asm: { status: 'ok', text: result.asm } }));
+        downloadBinary(result.executable, result.fileName || 'programa');
+        print('ok', `✔ ${result.output} Descargado como “${result.fileName || 'programa'}”.`);
+        setStage(STAGE.BUILT);
+      } else {
+        print('program', result.output || '(el programa no imprimió nada)');
+        print('ok', '✔ Ejecución terminada');
+      }
+    } finally {
+      setBusy(null);
+    }
+  }, [busy, stage, code, stdin, notify, print, reportErrors]);
 
   const loadExample = useCallback((ex) => {
     if (dirty && !window.confirm('Hay cambios sin guardar. ¿Reemplazar el código con el ejemplo?')) return;
@@ -187,10 +282,6 @@ export default function App() {
     editorRef.current = editor;
     monacoRef.current = monaco;
     decorationsRef.current = editor.createDecorationsCollection();
-    const { KeyMod, KeyCode } = monaco;
-    editor.addCommand(KeyMod.CtrlCmd | KeyCode.KeyS, () => actionsRef.current.save());
-    editor.addCommand(KeyMod.CtrlCmd | KeyCode.KeyO, () => actionsRef.current.openFile());
-    editor.addCommand(KeyMod.CtrlCmd | KeyCode.Enter, () => actionsRef.current.validate());
     editor.onDidChangeCursorPosition((e) => setCursor({ line: e.position.lineNumber, column: e.position.column }));
     editor.focus();
   };
@@ -198,26 +289,27 @@ export default function App() {
   const handleChange = (value) => {
     setCode(value ?? '');
     setDirty(true);
-    clearMarks(); // las líneas marcadas ya no corresponden al código editado
+    resetPipeline(); // las líneas marcadas y los pasos hechos ya no corresponden al código editado
   };
 
   // ---------- Render ----------
-  const placeholder = (what, endpoint) => (
-    <div className="placeholder">
-      <p>{what} estará disponible próximamente.</p>
-      <p className="muted">Se generará con <code>{endpoint}</code>.</p>
-    </div>
-  );
+  const steps = STEPS.map((s) => ({
+    ...s,
+    enabled: stage >= s.needs,
+    title: stage >= s.needs ? s.label : s.missing,
+  }));
+  const busyText = busy === 'check' ? 'Validando…' : STEPS.find((s) => s.id === busy)?.status;
 
   return (
     <div className="app">
       <Toolbar
         busy={busy}
+        steps={steps}
         onOpen={openFile}
         onSave={save}
         onLoadExample={loadExample}
         onValidate={validate}
-        onPending={pending}
+        onStep={runStep}
         onAbout={() => setShowAbout(true)}
       />
       <input ref={fileInputRef} type="file" accept=".bml" hidden onChange={handleFileChosen} />
@@ -225,7 +317,10 @@ export default function App() {
       <main className="workspace">
         <section className="editor-pane">
           <div className="pane-title">
-            <span>{fileName}{dirty && <span className="dirty" title="Cambios sin guardar"> ●</span>}</span>
+            <span data-testid="file-name">
+              {fileName}
+              {dirty && <span className="dirty" title="Cambios sin guardar"> ● sin guardar</span>}
+            </span>
           </div>
           <div className="editor-host">
             <Editor
@@ -255,8 +350,8 @@ export default function App() {
           active={rightTab}
           onChange={setRightTab}
           tabs={[
-            { id: 'tac', label: 'Código intermedio', content: tacOutput ? <pre className="code-out">{tacOutput}</pre> : placeholder('El código intermedio', 'POST /api/tac') },
-            { id: 'asm', label: 'NASM', content: asmOutput ? <pre className="code-out">{asmOutput}</pre> : placeholder('El código NASM', 'POST /api/asm') },
+            { id: 'tac', label: 'Código intermedio', content: <ResultView result={results.tac} what="El código intermedio" action="Código intermedio" /> },
+            { id: 'asm', label: 'NASM', content: <ResultView result={results.asm} what="El código NASM" action="Código NASM" /> },
           ]}
         />
 
@@ -269,8 +364,8 @@ export default function App() {
               id: 'output',
               label: 'Salida',
               content: (
-                <div className="console">
-                  {log.length === 0 && <div className="muted">Presiona “Validar” (Ctrl+Enter) para analizar el programa.</div>}
+                <div className="console" data-testid="console">
+                  {log.length === 0 && <div className="muted">Presiona “Validar” (F5) para analizar el programa.</div>}
                   {log.map((entry) => (
                     <div
                       key={entry.id}
@@ -279,7 +374,7 @@ export default function App() {
                       title={entry.line ? 'Ir a la línea' : undefined}
                     >
                       <span className="time">[{entry.time}]</span>
-                      {entry.type === 'raw' ? <pre>{entry.text}</pre> : <span>{entry.text}</span>}
+                      {entry.type === 'raw' || entry.type === 'program' ? <pre>{entry.text}</pre> : <span>{entry.text}</span>}
                     </div>
                   ))}
                 </div>
@@ -293,7 +388,7 @@ export default function App() {
                   className="stdin"
                   value={stdin}
                   onChange={(e) => setStdin(e.target.value)}
-                  placeholder="Valores para READ al ejecutar el programa (uno por línea). Disponible cuando esté listo “Ejecutar”."
+                  placeholder="Valores para READ al ejecutar el programa, uno por línea."
                   spellCheck={false}
                 />
               ),
@@ -303,13 +398,14 @@ export default function App() {
       </main>
 
       <footer className="statusbar">
-        <span className={`status ${busy ? 'busy' : 'ready'}`}>
-          <span className="dot" /> {busy ? 'Validando…' : 'Listo'}
+        <span className={`status ${busy ? 'busy' : 'ready'}`} data-testid="status">
+          <span className="dot" /> {busy ? busyText : 'Listo'}
         </span>
         <span title={health?.bmlangPath}>
           {health == null ? 'Comprobando analizador…' : health.ok ? `Analizador: bmlang (${health.mode})` : 'Analizador no disponible'}
         </span>
         <span className="spacer" />
+        {dirty && <span>● Sin guardar</span>}
         <span>Ln {cursor.line}, Col {cursor.column}</span>
         <span>BMLang</span>
       </footer>

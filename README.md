@@ -3,35 +3,48 @@
 - `bmlang_tdc/`: analizador de BMLang y generador de codigo de tres direcciones mediante acciones en `bmlang.y`.
 - `tdc_nasm/`: traductor del TDC a ensamblador NASM de Linux x86 de 32 bits, implementado en `.l` y `.y`.
 - `ejemplos/`: programas fuente `.bml`.
-- `docs/`: gramatica.
+- `docs/`: gramáticas del compilador y del traductor a NASM en PDF.
 
 Los archivos C/H producidos por Flex y Bison y los ejecutables se generan junto a sus fuentes y quedan excluidos de Git. No hay modulos manuales `.c` o `.h` para la generacion.
 
-## Compilar en Linux
+## Compilación y ejecución en Ubuntu
 
-Desde la raiz del repositorio, con Bison, Flex y GCC instalados:
+Ejecuta los siguientes comandos desde la raíz del repositorio.
 
-```sh
+Compila el generador de TDC:
+
+```bash
 bison -d -o bmlang_tdc/bmlang.tab.c bmlang_tdc/bmlang.y
 flex -o bmlang_tdc/lex.yy.c bmlang_tdc/bmlang.l
 gcc -Wall -Wextra -o bmlang_tdc/bmlang bmlang_tdc/bmlang.tab.c bmlang_tdc/lex.yy.c
 ```
 
-## Generar el TDC
+Compila el traductor a NASM:
 
-El programa lee desde la entrada estandar y muestra el TDC en consola:
-
-```sh
-./bmlang_tdc/bmlang < ejemplos/entrada_valida.bml
+```bash
+bison -d -o tdc_nasm/tdc_nasm.tab.c tdc_nasm/tdc_nasm.y
+flex -o tdc_nasm/lex.yy.c tdc_nasm/tdc_nasm.l
+gcc -Wall -Wextra -o tdc_nasm/tdc_nasm tdc_nasm/tdc_nasm.tab.c tdc_nasm/lex.yy.c
 ```
 
-Para guardarlo en un archivo `.tac`, se redirige la salida:
+Genera el TDC y el ensamblador:
 
-```sh
-./bmlang_tdc/bmlang < ejemplos/entrada_valida.bml > programa.tac
+```bash
+./bmlang_tdc/bmlang < ejemplos/entrada_valida.bml > tdc_nasm/programa.tac
+./tdc_nasm/tdc_nasm < tdc_nasm/programa.tac > tdc_nasm/programa.asm
 ```
 
-Los errores se escriben en stderr con el mensaje, la linea y el texto cercano. El TDC se guarda en memoria hasta terminar el analisis: si falla, no se imprime codigo parcial. La redireccion `>` puede vaciar un archivo de salida anterior antes de ejecutar el programa.
+Ensamblalo, enlázalo y ejecútalo:
+
+```bash
+nasm -f elf32 tdc_nasm/programa.asm -o tdc_nasm/programa.o
+ld -m elf_i386 -o tdc_nasm/programa tdc_nasm/programa.o
+./tdc_nasm/programa
+```
+
+El ejemplo imprime 10 y después los números de 0 a 4, uno por línea.
+
+Los errores se escriben en stderr con el mensaje, la línea y el texto cercano. El TDC se guarda en memoria hasta terminar el análisis: si falla, no se imprime código parcial. La redirección `>` puede vaciar un archivo de salida anterior antes de ejecutar el programa.
 
 ## Formato del TDC
 
@@ -46,7 +59,7 @@ call output;
 ```
 
 - Se conserva `$` en las variables del usuario para distinguirlas de temporales como `t1`.
-- `var $a;` registra una declaracion para el futuro traductor a NASM.
+- `var $a;` registra una declaracion para el traductor a NASM.
 - Los temporales se llaman `t1`, `t2`, etc. Las etiquetas se llaman `l1`, `l2`, etc.
 - Se generan asignaciones, operaciones aritmeticas, potencia, comparaciones, `IF/ELSE`, `WHILE`, `FOR`, `READ` y `WRITE`.
 - La potencia mantiene la asociatividad a la derecha. La resta reconoce entradas sin espacios, como `5-1`. El signo negativo se resuelve en el `.y` mediante una resta desde cero.
@@ -59,32 +72,7 @@ La implementacion usa un buffer de TDC de 1 MiB y valores de texto de hasta 127 
 
 ## Traducir el TDC a NASM
 
-El traductor reconoce el formato producido por `bmlang_tdc`: declaraciones, variables, temporales, asignaciones, aritmetica, potencia, comparaciones, etiquetas, saltos, lectura y escritura.
-
-Desde la raiz del repositorio, compila la segunda etapa:
-
-```sh
-bison -d -o tdc_nasm/tdc_nasm.tab.c tdc_nasm/tdc_nasm.y
-flex -o tdc_nasm/lex.yy.c tdc_nasm/tdc_nasm.l
-gcc -Wall -Wextra -o tdc_nasm/tdc_nasm tdc_nasm/tdc_nasm.tab.c tdc_nasm/lex.yy.c
-```
-
-Genera ambos archivos de salida:
-
-```sh
-./bmlang_tdc/bmlang < ejemplos/entrada_valida.bml > tdc_nasm/programa.tac
-./tdc_nasm/tdc_nasm < tdc_nasm/programa.tac > tdc_nasm/programa.asm
-```
-
-En Linux, con NASM, `ld` y soporte de ejecucion x86 de 32 bits:
-
-```sh
-nasm -f elf32 tdc_nasm/programa.asm -o tdc_nasm/programa.o
-ld -m elf_i386 -o tdc_nasm/programa tdc_nasm/programa.o
-./tdc_nasm/programa
-```
-
-El ejemplo incluido imprime 10 y despues los numeros de 0 a 4, uno por linea.
+El traductor reconoce el formato producido por `bmlang_tdc`: declaraciones, variables, temporales, asignaciones, aritmetica, potencia, comparaciones, etiquetas, saltos, lectura y escritura. Los comandos completos para ambas etapas están en la sección de compilación y ejecución en Ubuntu.
 
 ## Comportamiento del traductor
 

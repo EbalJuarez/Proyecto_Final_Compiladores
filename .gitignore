@@ -23,6 +23,14 @@ desktop.ini
 /compilador/*.exe
 /compilador/*.o
 /compilador/*.obj
+/tdc_nasm/*.tab.c
+/tdc_nasm/*.tab.h
+/tdc_nasm/lex.yy.c
+/tdc_nasm/tdc_nasm
+/tdc_nasm/*.exe
+/tdc_nasm/*.o
+/tdc_nasm/*.obj
+/*.tac
 /salida/
 
 # Playwright

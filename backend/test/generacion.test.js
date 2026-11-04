@@ -37,8 +37,20 @@ const toolchainSkip = process.platform === 'win32'
   ? 'las pruebas de nasm/ld corren en Linux'
   : missingTool && `${missingTool} no está instalado`;
 
-describe('bmlang real sin generador', { skip: bmlangSkip }, () => {
-  for (const [name, phase] of [['--tac', generateTac], ['--asm', generateAsm], ['build', buildExecutable], ['run', runProgram]]) {
+describe('bmlang real: TAC listo, NASM pendiente', { skip: bmlangSkip }, () => {
+  test('--tac devuelve el código de tres direcciones', async () => {
+    const r = await generateTac({ code: 'MAIN {\n    DEC $a;\n    $a => 2 + 3 * 4;\n    WRITE $a;\n}\n' });
+    assert.equal(r.ok, true);
+    assert.equal(r.output, 'main:\nvar $a;\nt1 = 3 * 4;\nt2 = 2 + t1;\n$a = t2;\npush $a;\ncall output;');
+  });
+
+  test('--tac traduce el menos unario como resta desde cero', async () => {
+    const r = await generateTac({ code: 'MAIN {\n    DEC $a, $b;\n    $a => $b-(-2);\n}\n' });
+    assert.equal(r.ok, true);
+    assert.match(r.output, /t1 = 0 - 2;\nt2 = \$b - t1;\n\$a = t2;/);
+  });
+
+  for (const [name, phase] of [['--asm', generateAsm], ['build', buildExecutable], ['run', runProgram]]) {
     test(`${name}: "Generador aún no implementado"`, async () => {
       const r = await phase({ code: program, stdin: '1\n' });
       assert.equal(r.ok, false);

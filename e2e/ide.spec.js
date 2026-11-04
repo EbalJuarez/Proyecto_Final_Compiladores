@@ -59,7 +59,7 @@ test('abrir rechaza archivos que no son .bml', async ({ page }) => {
   await expect(consoleBox(page)).toContainText('"notas.txt" no es un archivo .bml');
 });
 
-test('estado visible, pasos en orden y "Generador aún no implementado"', async ({ page }) => {
+test('estado visible, pasos en orden, TAC real y NASM pendiente', async ({ page }) => {
   await openIde(page);
   for (const id of ['tac', 'asm', 'build', 'run']) await expect(page.locator(`[data-step=${id}]`)).toBeDisabled();
 
@@ -78,10 +78,12 @@ test('estado visible, pasos en orden y "Generador aún no implementado"', async 
   await expect(page.locator('[data-step=build]')).toBeDisabled();
   await expect(page.locator('[data-step=build]')).toHaveAttribute('title', 'Primero genera el código NASM');
 
+  // El TAC ya lo genera el bmlang real; el NASM sigue pendiente.
   await page.locator('[data-step=tac]').click();
-  await expect(page.locator('.toast')).toHaveText('Generador aún no implementado');
-  await expect(page.locator('.side-pane')).toContainText('Generador aún no implementado');
+  await expect(page.getByTestId('result-editor')).toContainText('call output;');
+  await capture(page, '04-codigo-intermedio');
   await page.locator('[data-step=asm]').click();
+  await expect(page.locator('.toast')).toHaveText('Generador aún no implementado');
   await expect(page.locator('.side-pane')).toContainText('Generador aún no implementado');
   await expect(page.locator('[data-step=build]')).toBeDisabled();
   await capture(page, '04-generador-pendiente');

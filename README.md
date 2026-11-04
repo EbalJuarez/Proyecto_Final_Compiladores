@@ -3,15 +3,15 @@
 IDE web para el lenguaje **BMLang** (Basic Mathematical Language), proyecto final de Compiladores
 de la Universidad Mesoamericana.
 
-El análisis léxico y sintáctico lo hace el ejecutable `compilador/bmlang` (Flex + Bison). El IDE
-lo invoca, muestra el resultado y marca los errores en el editor. La generación de código de tres
-direcciones y de NASM la agregará el generador de código mediante un
-[contrato fijo](#contrato-con-el-generador-de-código). El IDE ya está conectado a ese contrato.
+El ejecutable `compilador/bmlang` (Flex + Bison) hace el análisis léxico y sintáctico y genera el
+**código de tres direcciones (TAC)** con acciones semánticas en `bmlang.y`. El IDE lo invoca, muestra
+el resultado y marca los errores en el editor. Falta el traductor de TAC a **NASM** (`tdc_nasm/`);
+el IDE ya está conectado a él mediante un [contrato fijo](#contrato-con-el-generador-de-código).
 
 ```
 .
 ├── compilador/                       ← analizador (Flex/Bison)
-│   ├── bmlang.l, bmlang.y            ← fuentes
+│   ├── bmlang.l, bmlang.y            ← analizador + generador de TAC
 │   └── archivos generados localmente (ignorados por Git)
 ├── frontend/                         ← React + Vite + Monaco
 │   ├── public/logo-umes.png          ← logo de la universidad (agregarlo aquí)
@@ -30,7 +30,7 @@ direcciones y de NASM la agregará el generador de código mediante un
 │   │       └── toolchain.js          ← nasm, ld y ejecución del programa
 │   └── test/                         ← pruebas del backend con el bmlang real
 ├── e2e/                              ← pruebas en navegador (Playwright)
-├── generacion/                       ← esqueletos del generador de código (siguiente etapa)
+├── tdc_nasm/                         ← traductor de TAC a NASM (pendiente; .l y .y)
 ├── docs/
 │   ├── Gramatica proyecto.pdf
 │   ├── propuesta-numero-de-linea.md  ← aplicada
@@ -120,8 +120,8 @@ $env:BMLANG_PATH = "C:\ruta\a\bmlang"; npm run dev                       # Power
   marca la línea en el editor (subrayado, fondo y punto en el margen). Haz clic en un error de la
   consola para saltar a esa línea.
 - **Código intermedio** y **Código NASM**. Se habilitan después de validar bien. El resultado se
-  muestra en las pestañas de la derecha, en solo lectura. Mientras el generador no exista,
-  muestran "Generador aún no implementado".
+  muestra en las pestañas de la derecha, en solo lectura. El código intermedio ya funciona; el
+  NASM muestra "Generador aún no implementado" hasta que exista `tdc_nasm/`.
 - **Generar ejecutable**. Se habilita después de generar el NASM. Ejecuta `nasm -f elf64` y
   `ld`, y descarga el binario `programa`.
 - **Ejecutar**. Se habilita después de generar el ejecutable. Corre el programa con el texto de
@@ -134,20 +134,21 @@ Si editas el código, los pasos ya hechos se invalidan y hay que volver a valida
 
 ## Contrato con el generador de código
 
-El IDE no necesita cambios cuando llegue el generador. Basta con que `bmlang` cumpla esto:
+El IDE no necesita cambios cuando llegue el traductor a NASM. Basta con que `bmlang` cumpla esto:
 
 | Invocación | Debe hacer |
 |---|---|
 | `bmlang < archivo.bml` | (actual) Validar. Imprime `Programa válido` y termina con exit 0, o reporta el error. |
 | `bmlang archivo.bml` | (actual) Igual que la anterior, pero lee el archivo. |
-| `bmlang --tac archivo.bml` | Imprimir **solo el TAC** por stdout y terminar con exit 0. |
+| `bmlang --tac archivo.bml` | (actual) Imprimir **solo el TAC** por stdout y terminar con exit 0. |
 | `bmlang --asm archivo.bml` | Imprimir **solo el NASM x86-64** (Linux, `_start`, syscalls) por stdout y terminar con exit 0. Debe ensamblar con `nasm -f elf64` y enlazar con `ld` sin librerías. |
 
 - **Errores**: van por stderr con exit distinto de 0, en el mismo formato que la validación:
   `Error: <texto> en la linea N cerca de <token>`. El IDE los marca en el editor.
-- **Opción no implementada**: hoy `main()` en `bmlang.y` responde a cualquier `--opción` con
-  `Error: opcion no soportada: --tac` (exit 2), y el IDE muestra "Generador aún no implementado".
-  Para conectar el generador, maneja `--tac`/`--asm` en ese `main()`.
+- **Opción no implementada**: hoy `main()` en `bmlang.y` responde a `--asm` (y a cualquier otra
+  `--opción`) con `Error: opcion no soportada: --asm` (exit 2), y el IDE muestra "Generador aún no
+  implementado". Para conectar el traductor de `tdc_nasm/`, maneja `--asm` en ese `main()`, por
+  ejemplo pasando el TAC al traductor y escribiendo el NASM por stdout.
 - **Orden de las fases**: el backend valida primero (por stdin) y después llama a `--tac` o
   `--asm`, así que el generador recibe programas sintácticamente válidos. La línea
   `Programa válido` en stdout se ignora, y una salida vacía cuenta como "no implementado".
@@ -161,6 +162,30 @@ Para probar "Generar ejecutable" y "Ejecutar" sin el generador, hay un NASM escr
 ```bash
 BMLANG_PATH=$PWD/backend/test/fixtures/generador_falso.sh npm run dev
 ```
+
+## Formato del código de tres direcciones
+
+Generado por las acciones de `compilador/bmlang.y` (aportado desde la rama `estructura`):
+
+```text
+main:
+var $a;
+t1 = 3 * 4;
+t2 = 2 + t1;
+$a = t2;
+push $a;
+call output;
+```
+
+- Las variables del usuario conservan `$`; los temporales son `t1`, `t2`…; las etiquetas, `l1`, `l2`…
+- `var $a;` registra una declaración para el traductor a NASM.
+- La potencia (`:`) es asociativa a la derecha. El menos unario se traduce como resta desde cero
+  (`t1 = 0 - 2;`).
+- Las comparaciones producen 1 o 0. `&&` y `||` generan saltos de cortocircuito.
+- `goto l1;` es un salto incondicional; `ifZ t1 goto l1;` salta si es cero; `ifNZ` si es distinto de cero.
+- `READ $a` → `call input;` + `pop $a;`. `WRITE $a` → `push $a;` + `call output;`.
+- El TAC se acumula en un buffer de 1 MiB y solo se imprime si el análisis termina sin errores.
+  Todavía no se comprueban variables duplicadas o sin declarar.
 
 ## API
 

@@ -121,7 +121,13 @@ test('modal "Acerca de" con integrantes y carnés', async ({ page }) => {
   await page.getByRole('button', { name: 'Acerca de' }).click();
   const modal = page.getByRole('dialog');
   await expect(modal).toBeVisible();
-  await expect(modal.locator('tbody tr')).toHaveCount(2);
+  await expect(modal.locator('tbody tr')).toHaveCount(3);
+  await expect(modal).toContainText('Yoshua Emanuel Gonzalez Fuentes');
+  await expect(modal).toContainText('202408012');
+  await expect(modal).toContainText('Ebal Isai Juarez Gonzalez');
+  await expect(modal).toContainText('202408025');
+  await expect(modal).toContainText('Geovanny Rafael Orozco Rodas');
+  await expect(modal).toContainText('202408038');
   await expect(modal).toContainText('Carné');
   await capture(page, '05-acerca-de');
   await page.keyboard.press('Escape');

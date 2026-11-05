@@ -1,11 +1,18 @@
-// ============================================================================
-// DATOS DEL EQUIPO — aparecen en el botón "Acerca de".
-// Reemplaza cada [Nombre N] y [Carné N] por los datos reales; agrega o quita
-// objetos { name, carne } si el equipo tiene más o menos integrantes.
-// ============================================================================
+// Integrantes del proyecto final de Compiladores
+
 export const TEAM = [
-  { name: '[Nombre 1]', carne: '[Carné 1]' },
-  { name: '[Nombre 2]', carne: '[Carné 2]' },
+  {
+    name: 'Yoshua Emanuel Gonzalez Fuentes',
+    carne: '202408012'
+  },
+  {
+    name: 'Ebal Isai Juarez Gonzalez',
+    carne: '202408025'
+  },
+  {
+    name: 'Geovanny Rafael Orozco Rodas',
+    carne: '202408038'
+  }
 ];
 
 export const COURSE = 'Compiladores — Universidad Mesoamericana';

@@ -26,6 +26,10 @@ static int cantidadEtiquetas = 0;
 static char codigo[1024 * 1024];
 static size_t longitudCodigo = 0;
 static int siguienteOperacion = 1;
+static int usaLectura = 0;
+static int usaEscritura = 0;
+static int usaDivision = 0;
+static int usaPotencia = 0;
 %}
 
 %union {
@@ -115,12 +119,14 @@ salto: GOTO ETIQUETA PYC {
 ;
 
 lectura: CALL INPUT PYC POP referencia PYC {
+    usaLectura = 1;
     definidos[$5] = 1;
     if (!emitir("    call bml_input\n    mov [bml_v%d], eax\n", $5)) YYABORT;
 }
 ;
 
 escritura: PUSH valor PYC CALL OUTPUT PYC {
+    usaEscritura = 1;
     if (!emitir("    mov eax, %s\n    call bml_output\n", $2)) YYABORT;
 }
 ;
@@ -235,11 +241,13 @@ int agregarOperacion(int destino, const char *a, const char *op, const char *b) 
     } else if (strcmp(op, "*") == 0) {
         if (!emitir("    imul eax, ebx\n")) return 0;
     } else if (strcmp(op, "/") == 0) {
+        usaDivision = 1;
         if (!emitir("    test ebx, ebx\n    jz bml_error_division\n"
             "    cmp eax, 0x80000000\n    jne bml_div_ok_%d\n"
             "    cmp ebx, -1\n    je bml_error_division\nbml_div_ok_%d:\n"
             "    cdq\n    idiv ebx\n", numero, numero)) return 0;
     } else if (strcmp(op, ":") == 0) {
+        usaPotencia = 1;
         if (!emitir("    test ebx, ebx\n    js bml_error_exponent\n"
             "    mov ecx, ebx\n    mov ebx, eax\n    mov eax, 1\n"
             "bml_pow_loop_%d:\n    test ecx, ecx\n    jz bml_pow_end_%d\n"
@@ -256,16 +264,26 @@ int main(void) {
     int resultado = yyparse();
     if (resultado != 0) return resultado;
     if (!validarSimbolos()) return 1;
-    printf("BITS 32\nsection .bss\n");
-    for (i = 0; i < cantidadSimbolos; i++) printf("bml_v%d resd 1\n", i);
-    printf("bml_buffer resb 17\nbml_char resb 1\n");
-    printf("section .data\n"
-        "bml_msg_division db 'Error: division por cero o resultado fuera de rango',10\n"
-        "bml_len_division equ $-bml_msg_division\n"
-        "bml_msg_exponent db 'Error: exponente negativo',10\n"
-        "bml_len_exponent equ $-bml_msg_exponent\n"
-        "bml_msg_input db 'Error: READ requiere un entero de 32 bits',10\n"
-        "bml_len_input equ $-bml_msg_input\n");
+    printf("BITS 32\n");
+    if (cantidadSimbolos > 0 || usaEscritura || usaLectura) {
+        printf("section .bss\n");
+        for (i = 0; i < cantidadSimbolos; i++) printf("bml_v%d resd 1\n", i);
+        if (usaEscritura) printf("bml_buffer resb 17\n");
+        if (usaLectura) printf("bml_char resb 1\n");
+    }
+    if (usaDivision || usaPotencia || usaLectura) printf("section .data\n");
+    if (usaDivision) {
+        printf("bml_msg_division db 'Error: division por cero o resultado fuera de rango',10\n"
+            "bml_len_division equ $-bml_msg_division\n");
+    }
+    if (usaPotencia) {
+        printf("bml_msg_exponent db 'Error: exponente negativo',10\n"
+            "bml_len_exponent equ $-bml_msg_exponent\n");
+    }
+    if (usaLectura) {
+        printf("bml_msg_input db 'Error: READ requiere un entero de 32 bits',10\n"
+            "bml_len_input equ $-bml_msg_input\n");
+    }
     printf("section .text\nglobal _start\n_start:\n");
     printf("%s", codigo);
     printf("    mov eax, 1\n    xor ebx, ebx\n    int 0x80\n");
@@ -281,145 +299,167 @@ void yyerror(const char *mensaje) {
 }
 
 void escribirRutinas(void) {
-    fputs(
-        "\n"
-        "bml_output:\n"
-        "    pushad\n"
-        "    mov esi, eax\n"
-        "    mov edi, bml_buffer + 16\n"
-        "    mov byte [edi], 10\n"
-        "    test eax, eax\n"
-        "    jns bml_output_digits\n"
-        "    neg eax\n"
-        "bml_output_digits:\n"
-        "    mov ebx, 10\n"
-        "bml_output_loop:\n"
-        "    xor edx, edx\n"
-        "    div ebx\n"
-        "    add dl, '0'\n"
-        "    dec edi\n"
-        "    mov [edi], dl\n"
-        "    test eax, eax\n"
-        "    jnz bml_output_loop\n"
-        "    test esi, esi\n"
-        "    jns bml_output_write\n"
-        "    dec edi\n"
-        "    mov byte [edi], '-'\n"
-        "bml_output_write:\n"
-        "    mov ecx, edi\n"
-        "    mov edx, bml_buffer + 17\n"
-        "    sub edx, edi\n"
-        "    mov eax, 4\n"
-        "    mov ebx, 1\n"
-        "    int 0x80\n"
-        "    popad\n"
-        "    ret\n"
-        "\n"
-        "bml_read_char:\n"
-        "    mov eax, 3\n"
-        "    xor ebx, ebx\n"
-        "    mov ecx, bml_char\n"
-        "    mov edx, 1\n"
-        "    int 0x80\n"
-        "    ret\n"
-        "bml_input:\n"
-        "    push ebx\n"
-        "    push ecx\n"
-        "    push edx\n"
-        "    push esi\n"
-        "    push edi\n"
-        "    push ebp\n"
-        "    xor esi, esi\n"
-        "    xor edi, edi\n"
-        "    xor ebp, ebp\n"
-        "bml_input_skip:\n"
-        "    call bml_read_char\n"
-        "    cmp eax, 1\n"
-        "    jne bml_error_input\n"
-        "    mov al, [bml_char]\n"
-        "    cmp al, ' '\n"
-        "    je bml_input_skip\n"
-        "    cmp al, 9\n"
-        "    je bml_input_skip\n"
-        "    cmp al, 10\n"
-        "    je bml_input_skip\n"
-        "    cmp al, 13\n"
-        "    je bml_input_skip\n"
-        "    cmp al, '-'\n"
-        "    jne bml_input_plus\n"
-        "    mov edi, 1\n"
-        "    jmp bml_input_after_sign\n"
-        "bml_input_plus:\n"
-        "    cmp al, '+'\n"
-        "    jne bml_input_digit\n"
-        "bml_input_after_sign:\n"
-        "    call bml_read_char\n"
-        "    cmp eax, 1\n"
-        "    jne bml_error_input\n"
-        "bml_input_digit:\n"
-        "    movzx edx, byte [bml_char]\n"
-        "    cmp edx, '0'\n"
-        "    jb bml_input_delimiter\n"
-        "    cmp edx, '9'\n"
-        "    ja bml_input_delimiter\n"
-        "    sub edx, '0'\n"
-        "    cmp esi, 214748364\n"
-        "    ja bml_error_input\n"
-        "    jb bml_input_accumulate\n"
-        "    mov eax, 7\n"
-        "    add eax, edi\n"
-        "    cmp edx, eax\n"
-        "    ja bml_error_input\n"
-        "bml_input_accumulate:\n"
-        "    imul esi, esi, 10\n"
-        "    add esi, edx\n"
-        "    inc ebp\n"
-        "    call bml_read_char\n"
-        "    cmp eax, 0\n"
-        "    je bml_input_done\n"
-        "    jl bml_error_input\n"
-        "    jmp bml_input_digit\n"
-        "bml_input_delimiter:\n"
-        "    cmp edx, ' '\n"
-        "    je bml_input_done\n"
-        "    cmp edx, 9\n"
-        "    je bml_input_done\n"
-        "    cmp edx, 10\n"
-        "    je bml_input_done\n"
-        "    cmp edx, 13\n"
-        "    jne bml_error_input\n"
-        "bml_input_done:\n"
-        "    test ebp, ebp\n"
-        "    jz bml_error_input\n"
-        "    mov eax, esi\n"
-        "    test edi, edi\n"
-        "    jz bml_input_return\n"
-        "    neg eax\n"
-        "bml_input_return:\n"
-        "    pop ebp\n"
-        "    pop edi\n"
-        "    pop esi\n"
-        "    pop edx\n"
-        "    pop ecx\n"
-        "    pop ebx\n"
-        "    ret\n"
-        "bml_error_division:\n"
-        "    mov ecx, bml_msg_division\n"
-        "    mov edx, bml_len_division\n"
-        "    jmp bml_error\n"
-        "bml_error_exponent:\n"
-        "    mov ecx, bml_msg_exponent\n"
-        "    mov edx, bml_len_exponent\n"
-        "    jmp bml_error\n"
-        "bml_error_input:\n"
-        "    mov ecx, bml_msg_input\n"
-        "    mov edx, bml_len_input\n"
-        "bml_error:\n"
-        "    mov eax, 4\n"
-        "    mov ebx, 2\n"
-        "    int 0x80\n"
-        "    mov eax, 1\n"
-        "    mov ebx, 1\n"
-        "    int 0x80\n"
-        , stdout);
+    if (usaEscritura) {
+        fputs(
+            "\n"
+            "bml_output:\n"
+            "    pushad\n"
+            "    mov esi, eax\n"
+            "    mov edi, bml_buffer + 16\n"
+            "    mov byte [edi], 10\n"
+            "    test eax, eax\n"
+            "    jns bml_output_digits\n"
+            "    neg eax\n"
+            "bml_output_digits:\n"
+            "    mov ebx, 10\n"
+            "bml_output_loop:\n"
+            "    xor edx, edx\n"
+            "    div ebx\n"
+            "    add dl, '0'\n"
+            "    dec edi\n"
+            "    mov [edi], dl\n"
+            "    test eax, eax\n"
+            "    jnz bml_output_loop\n"
+            "    test esi, esi\n"
+            "    jns bml_output_write\n"
+            "    dec edi\n"
+            "    mov byte [edi], '-'\n"
+            "bml_output_write:\n"
+            "    mov ecx, edi\n"
+            "    mov edx, bml_buffer + 17\n"
+            "    sub edx, edi\n"
+            "    mov eax, 4\n"
+            "    mov ebx, 1\n"
+            "    int 0x80\n"
+            "    popad\n"
+            "    ret\n"
+            "\n"
+            , stdout);
+    }
+    if (usaLectura) {
+        fputs(
+            "bml_read_char:\n"
+            "    mov eax, 3\n"
+            "    xor ebx, ebx\n"
+            "    mov ecx, bml_char\n"
+            "    mov edx, 1\n"
+            "    int 0x80\n"
+            "    ret\n"
+            "bml_input:\n"
+            "    push ebx\n"
+            "    push ecx\n"
+            "    push edx\n"
+            "    push esi\n"
+            "    push edi\n"
+            "    push ebp\n"
+            "    xor esi, esi\n"
+            "    xor edi, edi\n"
+            "    xor ebp, ebp\n"
+            "bml_input_skip:\n"
+            "    call bml_read_char\n"
+            "    cmp eax, 1\n"
+            "    jne bml_error_input\n"
+            "    mov al, [bml_char]\n"
+            "    cmp al, ' '\n"
+            "    je bml_input_skip\n"
+            "    cmp al, 9\n"
+            "    je bml_input_skip\n"
+            "    cmp al, 10\n"
+            "    je bml_input_skip\n"
+            "    cmp al, 13\n"
+            "    je bml_input_skip\n"
+            "    cmp al, '-'\n"
+            "    jne bml_input_plus\n"
+            "    mov edi, 1\n"
+            "    jmp bml_input_after_sign\n"
+            "bml_input_plus:\n"
+            "    cmp al, '+'\n"
+            "    jne bml_input_digit\n"
+            "bml_input_after_sign:\n"
+            "    call bml_read_char\n"
+            "    cmp eax, 1\n"
+            "    jne bml_error_input\n"
+            "bml_input_digit:\n"
+            "    movzx edx, byte [bml_char]\n"
+            "    cmp edx, '0'\n"
+            "    jb bml_input_delimiter\n"
+            "    cmp edx, '9'\n"
+            "    ja bml_input_delimiter\n"
+            "    sub edx, '0'\n"
+            "    cmp esi, 214748364\n"
+            "    ja bml_error_input\n"
+            "    jb bml_input_accumulate\n"
+            "    mov eax, 7\n"
+            "    add eax, edi\n"
+            "    cmp edx, eax\n"
+            "    ja bml_error_input\n"
+            "bml_input_accumulate:\n"
+            "    imul esi, esi, 10\n"
+            "    add esi, edx\n"
+            "    inc ebp\n"
+            "    call bml_read_char\n"
+            "    cmp eax, 0\n"
+            "    je bml_input_done\n"
+            "    jl bml_error_input\n"
+            "    jmp bml_input_digit\n"
+            "bml_input_delimiter:\n"
+            "    cmp edx, ' '\n"
+            "    je bml_input_done\n"
+            "    cmp edx, 9\n"
+            "    je bml_input_done\n"
+            "    cmp edx, 10\n"
+            "    je bml_input_done\n"
+            "    cmp edx, 13\n"
+            "    jne bml_error_input\n"
+            "bml_input_done:\n"
+            "    test ebp, ebp\n"
+            "    jz bml_error_input\n"
+            "    mov eax, esi\n"
+            "    test edi, edi\n"
+            "    jz bml_input_return\n"
+            "    neg eax\n"
+            "bml_input_return:\n"
+            "    pop ebp\n"
+            "    pop edi\n"
+            "    pop esi\n"
+            "    pop edx\n"
+            "    pop ecx\n"
+            "    pop ebx\n"
+            "    ret\n"
+            , stdout);
+    }
+    if (usaDivision) {
+        fputs(
+            "bml_error_division:\n"
+            "    mov ecx, bml_msg_division\n"
+            "    mov edx, bml_len_division\n"
+            "    jmp bml_error\n"
+            , stdout);
+    }
+    if (usaPotencia) {
+        fputs(
+            "bml_error_exponent:\n"
+            "    mov ecx, bml_msg_exponent\n"
+            "    mov edx, bml_len_exponent\n"
+            "    jmp bml_error\n"
+            , stdout);
+    }
+    if (usaLectura) {
+        fputs(
+            "bml_error_input:\n"
+            "    mov ecx, bml_msg_input\n"
+            "    mov edx, bml_len_input\n"
+            , stdout);
+    }
+    if (usaDivision || usaPotencia || usaLectura) {
+        fputs(
+            "bml_error:\n"
+            "    mov eax, 4\n"
+            "    mov ebx, 2\n"
+            "    int 0x80\n"
+            "    mov eax, 1\n"
+            "    mov ebx, 1\n"
+            "    int 0x80\n"
+            , stdout);
+    }
 }

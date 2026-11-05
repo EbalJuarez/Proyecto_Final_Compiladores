@@ -1,7 +1,7 @@
-; Hola mundo en NASM x86-64 (Linux): imprime un saludo, lee un entero con signo
+; Hola mundo en NASM x86 (Linux): imprime un saludo, lee un entero con signo
 ; de stdin y lo imprime. Se usa para probar "Generar ejecutable" y "Ejecutar"
-; mientras no exista el generador de NASM.
-;   nasm -f elf64 -o hola.o hola_mundo.asm && ld -o hola hola.o
+; con la misma arquitectura que el traductor TAC a NASM.
+;   nasm -f elf32 -o hola.o hola_mundo.asm && ld -m elf_i386 -o hola hola.o
 ;   echo 42 | ./hola   ->  Hola mundo / Numero: 42
 
 section .data
@@ -19,90 +19,91 @@ section .text
 
 _start:
     ; write(1, saludo, saludo_len)
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, saludo
-    mov rdx, saludo_len
-    syscall
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, saludo
+    mov edx, saludo_len
+    int 0x80
 
     ; read(0, entrada, 32)
-    mov rax, 0
-    mov rdi, 0
-    mov rsi, entrada
-    mov rdx, 32
-    syscall
+    mov eax, 3
+    xor ebx, ebx
+    mov ecx, entrada
+    mov edx, 32
+    int 0x80
+    mov ebp, eax
 
-    ; atoi con signo: rbx = número, r8 = 1 si es negativo
-    xor rbx, rbx
-    xor r8d, r8d
-    test rax, rax
+    ; atoi con signo: ebx = número, edi = 1 si es negativo
+    xor ebx, ebx
+    xor edi, edi
+    test ebp, ebp
     jle .convertir              ; sin entrada: imprime 0
-    mov rsi, entrada
-    lea rdx, [entrada + rax]    ; fin de lo leído
-    cmp byte [rsi], '-'
+    mov esi, entrada
+    lea edx, [entrada + ebp]    ; fin de lo leído
+    cmp byte [esi], '-'
     jne .digitos
-    mov r8d, 1
-    inc rsi
+    mov edi, 1
+    inc esi
 .digitos:
-    cmp rsi, rdx
+    cmp esi, edx
     jae .signo
-    movzx eax, byte [rsi]
+    movzx eax, byte [esi]
     sub eax, '0'
     cmp eax, 9
     ja .signo                   ; termina en el primer carácter que no es dígito
-    imul rbx, rbx, 10
-    add rbx, rax
-    inc rsi
+    imul ebx, ebx, 10
+    add ebx, eax
+    inc esi
     jmp .digitos
 .signo:
-    test r8d, r8d
+    test edi, edi
     jz .convertir
-    neg rbx
+    neg ebx
 
 .convertir:
     ; itoa: escribe los dígitos de derecha a izquierda terminando en salto de línea
-    lea rdi, [salida + 31]
-    mov byte [rdi], 10
-    mov rax, rbx
-    xor r9d, r9d
-    test rax, rax
+    lea edi, [salida + 31]
+    mov byte [edi], 10
+    mov eax, ebx
+    xor esi, esi
+    test eax, eax
     jns .itoa
-    neg rax
-    mov r9d, 1
+    neg eax
+    mov esi, 1
 .itoa:
-    mov rcx, 10
+    mov ecx, 10
 .siguiente:
     xor edx, edx
-    div rcx
+    div ecx
     add dl, '0'
-    dec rdi
-    mov [rdi], dl
-    test rax, rax
+    dec edi
+    mov [edi], dl
+    test eax, eax
     jnz .siguiente
-    test r9d, r9d
+    test esi, esi
     jz .imprimir
-    dec rdi
-    mov byte [rdi], '-'
+    dec edi
+    mov byte [edi], '-'
 
 .imprimir:
-    mov r12, rdi                ; syscall conserva r12
+    mov ebp, edi
 
     ; write(1, etiqueta, etiqueta_len)
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, etiqueta
-    mov rdx, etiqueta_len
-    syscall
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, etiqueta
+    mov edx, etiqueta_len
+    int 0x80
 
     ; write(1, número, longitud)
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, r12
-    lea rdx, [salida + 32]
-    sub rdx, r12
-    syscall
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, ebp
+    lea edx, [salida + 32]
+    sub edx, ebp
+    int 0x80
 
     ; exit(0)
-    mov rax, 60
-    xor edi, edi
-    syscall
+    mov eax, 1
+    xor ebx, ebx
+    int 0x80

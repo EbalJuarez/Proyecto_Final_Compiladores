@@ -22,7 +22,7 @@ if (fs.existsSync(frontendDist)) {
   app.get('*', (_req, res) => res.sendFile(path.join(frontendDist, 'index.html')));
 }
 
-app.listen(config.port, () => {
+app.listen(config.port, '127.0.0.1', () => {
   console.log(`BMLang IDE server en http://localhost:${config.port}`);
   console.log(`Binario: ${config.bmlangPath} (runner: ${config.runner})`);
   // Arranca WSL de antemano: el primer arranque de la VM puede tardar más que el timeout.

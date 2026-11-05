@@ -47,7 +47,7 @@ export function parseNasmErrors(stderr) {
 }
 
 /**
- * Ensambla `asmText` con `nasm -f elf64` y enlaza con `ld` dentro de `dir`.
+ * Ensambla `asmText` con `nasm -f elf32` y enlaza con `ld -m elf_i386` dentro de `dir`.
  * @returns {Promise<{ ok: true, exe: string, log: string } | { ok: false, stage: 'nasm'|'ld', errors: {line: number|null, message: string}[], raw: string }>}
  */
 export async function assembleAndLink(asmText, dir) {
@@ -56,7 +56,7 @@ export async function assembleAndLink(asmText, dir) {
   const exe = path.join(dir, 'programa');
   await fs.writeFile(asmFile, asmText, 'utf8');
 
-  const nasm = await runTool('nasm', 'NASM_PATH', config.nasmPath, ['-f', 'elf64', '-o', objFile, asmFile]);
+  const nasm = await runTool('nasm', 'NASM_PATH', config.nasmPath, ['-f', 'elf32', '-o', objFile, asmFile]);
   if (nasm.timedOut) return { ok: false, stage: 'nasm', errors: [timeoutError('nasm')], raw: nasm.stderr };
   if (nasm.exitCode !== 0) {
     const errors = parseNasmErrors(nasm.stderr);
@@ -68,7 +68,7 @@ export async function assembleAndLink(asmText, dir) {
     };
   }
 
-  const ld = await runTool('ld', 'LD_PATH', config.ldPath, ['-o', exe, objFile]);
+  const ld = await runTool('ld', 'LD_PATH', config.ldPath, ['-m', 'elf_i386', '-o', exe, objFile]);
   if (ld.timedOut) return { ok: false, stage: 'ld', errors: [timeoutError('ld')], raw: ld.stderr };
   if (ld.exitCode !== 0) {
     return {

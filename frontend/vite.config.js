@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5173,
     // En desarrollo, /api se reenvía al servidor Express (sin necesidad de CORS).
     proxy: {
-      '/api': `http://localhost:${process.env.PORT || 3001}`,
+      '/api': `http://127.0.0.1:${process.env.PORT || 3001}`,
     },
   },
 });

@@ -59,7 +59,7 @@ test('abrir rechaza archivos que no son .bml', async ({ page }) => {
   await expect(consoleBox(page)).toContainText('"notas.txt" no es un archivo .bml');
 });
 
-test('estado visible, pasos en orden, TAC real y NASM pendiente', async ({ page }) => {
+test('flujo real: validar, TAC, NASM, ejecutable y ejecución con stdin', async ({ page }) => {
   await openIde(page);
   for (const id of ['tac', 'asm', 'build', 'run']) await expect(page.locator(`[data-step=${id}]`)).toBeDisabled();
 
@@ -78,15 +78,27 @@ test('estado visible, pasos en orden, TAC real y NASM pendiente', async ({ page 
   await expect(page.locator('[data-step=build]')).toBeDisabled();
   await expect(page.locator('[data-step=build]')).toHaveAttribute('title', 'Primero genera el código NASM');
 
-  // El TAC ya lo genera el bmlang real; el NASM sigue pendiente.
+  // El TAC lo genera bmlang y el NASM el traductor real.
   await page.locator('[data-step=tac]').click();
   await expect(page.getByTestId('result-editor')).toContainText('call output;');
   await capture(page, '04-codigo-intermedio');
   await page.locator('[data-step=asm]').click();
-  await expect(page.locator('.toast')).toHaveText('Generador aún no implementado');
-  await expect(page.locator('.side-pane')).toContainText('Generador aún no implementado');
-  await expect(page.locator('[data-step=build]')).toBeDisabled();
-  await capture(page, '04-generador-pendiente');
+  await expect(page.getByTestId('result-editor')).toContainText('BITS 32');
+  await expect(page.getByTestId('result-editor')).toContainText('global _start');
+  await expect(page.locator('[data-step=build]')).toBeEnabled();
+  await capture(page, '04-codigo-nasm');
+
+  const download = page.waitForEvent('download');
+  await page.locator('[data-step=build]').click();
+  expect((await download).suggestedFilename()).toBe('programa');
+  await expect(page.locator('[data-step=run]')).toBeEnabled();
+
+  await page.getByRole('tab', { name: 'Entrada (stdin)' }).click();
+  await page.locator('textarea.stdin').fill('4\n3\n');
+  await page.locator('[data-step=run]').click();
+  await expect(consoleBox(page).locator('.log-program pre').last()).toContainText('6\n64');
+  await expect(consoleBox(page)).toContainText('✔ Ejecución terminada');
+  await capture(page, '05-ejecucion-real');
 });
 
 test('indicador de cambios sin guardar y Ctrl+S', async ({ page }) => {
@@ -117,10 +129,10 @@ test('modal "Acerca de" con integrantes y carnés', async ({ page }) => {
 });
 
 test('con un generador simulado: TAC, NASM, ejecutable y ejecución con stdin', async ({ page }) => {
-  // Respuestas como las que dará el backend cuando bmlang soporte --tac/--asm.
+  // Mantiene cubierta la respuesta del frontend sin sustituir la prueba real de arriba.
   const json = (body) => (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
   await page.route('**/api/tac', json({ ok: true, errors: [], output: 't1 = $base * $altura\nt2 = t1 / 2\n$area = t2' }));
-  await page.route('**/api/asm', json({ ok: true, errors: [], output: 'section .text\nglobal _start\n_start:\n    mov rax, 60\n    syscall' }));
+  await page.route('**/api/asm', json({ ok: true, errors: [], output: 'BITS 32\nsection .text\nglobal _start\n_start:\n    mov eax, 1\n    int 0x80' }));
   await page.route('**/api/build', json({ ok: true, errors: [], output: 'Ejecutable generado (4 bytes).', fileName: 'programa', executable: btoa('\x7fELF') }));
   let sentStdin = null;
   await page.route('**/api/run', (route) => {
